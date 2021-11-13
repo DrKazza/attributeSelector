@@ -1,0 +1,19 @@
+{
+  "name": "attributeselector",
+  "version": "1.0.0",
+  "description": "Quasi Random Attribute Selector",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DrKazza/attributeSelector.git"
+  },
+  "author": "DrKazza",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/DrKazza/attributeSelector/issues"
+  },
+  "homepage": "https://github.com/DrKazza/attributeSelector#readme"
+}
