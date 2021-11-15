@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/DrKazza/attributeSelector/issues"
   },
-  "homepage": "https://github.com/DrKazza/attributeSelector#readme"
+  "homepage": "https://github.com/DrKazza/attributeSelector#readme",
+  "dependencies": {
+    "fs": "0.0.1-security"
+  }
 }
