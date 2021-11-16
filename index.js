@@ -107,25 +107,36 @@ const whichBucket = (bucketBoundaries) => {
 
 const decodeAttributesToCurrents = (currentMints, currentVariableArray) => {
     for (i = 0; i < currentMints.length; i++) {
-        thisSerialNumber = currentMints[i].toString();
+        thisSerialNumber = currentMints[i];
         // the first digit is 7 ignore that
         if (thisSerialNumber.length != 21 || thisSerialNumber.substring(0,1) != "7") {
             console.log(`Bad serial number at entry ${i}, either doesn't lead with 7 or isn't 21 digits long`)
-            console.log(`Begins: ${thisSerialNumber.substring(0,1)}; ${thisSerialNumber.length} Long`)
-
         } else {
             for (j = 0; j < Math.floor(thisSerialNumber.length / 2); j++) {
                 // the variable j has two digits at j*2 + 1 and j*2 + 3
                 // the two digits make up a number k
                 // add 1 to the currentVariableArray[j][k]
-                k = parseInt(thisSerialNumber.substring(2*j+1),(2*j+3))
-                console.log(k)
+                k = parseInt(thisSerialNumber.substring((2*j+1),(2*j+3)))
                 currentVariableArray[j][k]++
              }
      
         }
     }
     return currentVariableArray
+}
+
+const createSerialNumber = (attributes) => {
+    if (attributes.length != 10) {
+        console.log(`Need 10 Attributes, only got ${attributes.length}`)
+        return
+    } else {
+        let serialString = "7"
+        for (i = 0; i < attributes.length; i++) {
+            if (attributes[i] < 10) {serialString+="0"}
+            serialString+=attributes[i]
+        }
+    }
+    return serialString
 }
 
 
@@ -185,12 +196,13 @@ const mintAttributes = (numberToMint) => {
 
     // Identifier would be a digit number with a max of - start with a 7 - the max will be
     // 702,030,205,190,214,031,410
+    // 702030205190214031410
     
     // 4) read a txt file of the nft codes already minted or create one that's new if current = 0
     try {
         var currentMints = fs.readFileSync('identifierList.txt').toString().split(os.EOL);
-        currentMints = currentMints.map((x) => parseInt(x));
-        if (currentMints.length == 1 && isNaN(currentMints[0])) {
+        // DO NOT CONVERT THIS TO AN INTEGER
+        if (currentMints.length == 1 && (isNaN(currentMints[0]) || currentMints[0] == "")) {
             // console.log(`empty file`)
             currentMints = [];
         }
@@ -206,13 +218,19 @@ const mintAttributes = (numberToMint) => {
         allCurrents = decodeAttributesToCurrents(currentMints, allCurrents);
     }
 
-
     // 6) Define the number of NFTs to mint in this cycle - must be less than Final - currentMints.length
-    // 7) define the array to store the nft codes
+    if (numberToMint > (targetIssuance - currentMints.length)) {
+        console.log(`Trying to Mint more than is remaining: Try to mint ${targetIssuance}, Remaining ${(targetIssuance - currentMints.length)}`);
+        return
+    }
     
+    // 7) define the array to create the nft codes
+    // done this above - it's currentMints
+
     // 8) loop thru the number of NFTs to mint 
     // 9) choose each attribute
     // 10) before confirming the NFT attribute combo check that it's not been used before
+    // either use the search function   arr.indexOf("searchterm") and -1 means not found or try  arr.includes("searchterm") returns boolean - start with latter
     // 11) if it has go back to step 8 for a max of 10 iterations until no match is found
     // 12) if there's still a match add use one of 10 golden attributes that are only used for this final swap - this is likely only a problem for epics at the very end of the minting process
     // 13) Once a unique is confirmed convert to a number add it to the flat file and the "current" array for checking
