@@ -60,15 +60,19 @@ const arrayMaxMint = (maxToMint, currentMinted, minToMint, excessMints) => {
         if (maxToMint.length != currentMinted.length) throw "arrays are different lengths"
         if (maxToMint.length != minToMint.length) throw "arrays are different lengths"
         // this calculates an array where each value is
-        // Minimum of [Maximum of this mint - Current, Minimum of this mint + excess mints]
+        // Minimum of [Maximum of this mint - Current, Minimum left of this mint + excess mints]
+        // Minimum left is the minimum less the current - floored at zero
         // e.g. if the Max of a specific trait = 2000 and the current is 1000 there's a max of 1000 left
         // but if there's only 70 left to mint and of them 52 need to be minted elsewhere then that excess is 18
         // the max therefore becomes 18 (not 1000)
 
         let x = [];
         for(let i = 0; i < maxToMint.length; i++) {
-            x.push(Math.min(maxToMint[i] - currentMinted[i], minToMint[i] + excessMints));
-            if (x[i] < 0) throw "current minted above the max limit!"
+            // console.log(`arrayMaxMint variables: ${maxToMint},  ${currentMinted}, ${minToMint}, ${excessMints}`)
+            x.push(Math.min(maxToMint[i] - currentMinted[i], Math.max((minToMint[i] - currentMinted[i]), 0)  + excessMints));
+            if (x[i] < 0) {
+                throw `current minted above the max limit attribute value = ${i}`
+            }
         }
         return x
     }
@@ -92,7 +96,7 @@ const arrayBoundaries = (maxMints) => {
     }
 }
 
-const whichBucket = (bucketBoundaries) => {
+const whichBucket = async (bucketBoundaries) => {
     let maxRand = bucketBoundaries[bucketBoundaries.length - 1]
     let rand = Math.floor(Math.random()*maxRand)  // 0 - MaxRand
     let bucket = 0;
@@ -102,17 +106,17 @@ const whichBucket = (bucketBoundaries) => {
             break;
         }
     }
-    return bucket
+    return [bucket, maxRand, rand]
 }
 
-const decodeAttributesToCurrents = (currentMints, currentVariableArray) => {
-    for (i = 0; i < currentMints.length; i++) {
+const decodeAttributesToCurrents = async (currentMints, currentVariableArray) => {
+    for (let i = 0; i < currentMints.length; i++) {
         thisSerialNumber = currentMints[i];
         // the first digit is 7 ignore that
         if (thisSerialNumber.length != 21 || thisSerialNumber.substring(0,1) != "7") {
             console.log(`Bad serial number at entry ${i}, either doesn't lead with 7 or isn't 21 digits long`)
         } else {
-            for (j = 0; j < Math.floor(thisSerialNumber.length / 2); j++) {
+            for (let j = 0; j < Math.floor(thisSerialNumber.length / 2); j++) {
                 // the variable j has two digits at j*2 + 1 and j*2 + 3
                 // the two digits make up a number k
                 // add 1 to the currentVariableArray[j][k]
@@ -125,23 +129,62 @@ const decodeAttributesToCurrents = (currentMints, currentVariableArray) => {
     return currentVariableArray
 }
 
-const createSerialNumber = (attributes) => {
+const createSerialNumber = async (attributes) => {
     if (attributes.length != 10) {
         console.log(`Need 10 Attributes, only got ${attributes.length}`)
         return
     } else {
         let serialString = "7"
-        for (i = 0; i < attributes.length; i++) {
+        for (let i = 0; i < attributes.length; i++) {
             if (attributes[i] < 10) {serialString+="0"}
-            serialString+=attributes[i]
+            serialString+=attributes[i].toString()
+        }
+        return serialString
+    }
+}
+
+const chooseAttributes = async (arrayMax, arrayMin, arrayCurrent, totalIssuance, useSpecial) => {
+    let numOfAttributes = arrayMax.length;
+    let numIssued = arrayTotal(arrayCurrent[0]);
+    let leftToMint = totalIssuance - numIssued
+    // console.log(`leftToMint ${leftToMint}`)
+    let chosenAttributes = []
+
+    // do attributes 0-7 + 9 if you need a golden plate and force 8 to be = 15
+    // otherwise do 1-8 and force 9 to be = 10
+    for (let i=0; i < numOfAttributes; i++) {
+        if (i == numOfAttributes-2 && useSpecial) {
+            // we've asked for a golden plate therefore the normal plate needs to be in the 16th slot (=15)
+            chosenAttributes.push(arrayCurrent[i].length-1);
+        } else if (i == numOfAttributes-1 && !useSpecial) {
+            // no golden plate so just put the goldenplate array in the 11th slot (=10)
+            chosenAttributes.push(arrayCurrent[i].length-1);
+        } else {
+            let thisMinRemain = arrayFloorSubtract(arrayMin[i], arrayCurrent[i]);
+
+            let thisForcedToMint = arrayTotal(thisMinRemain);
+            let thisMaxRemain = arrayMaxMint(arrayMax[i], arrayCurrent[i], arrayMin[i], leftToMint - thisForcedToMint);
+            let thisRandBoundaries = arrayBoundaries(thisMaxRemain);
+            
+            let thisBucket = await whichBucket(thisRandBoundaries);
+            
+            if (thisMaxRemain[thisBucket] == 0) {
+                console.log(`failed when:`)
+                console.log(`thisForcedToMint ${thisForcedToMint}`)
+                console.log(`thisMinRemain ${thisMinRemain}`)
+                console.log(`thisMaxRemain ${thisMaxRemain}`)
+                console.log(`thisRandBoundaries ${thisRandBoundaries}`)
+                console.log(`thisBucket ${thisBucket}`)    
+            }
+
+            chosenAttributes.push(thisBucket[0]);    
         }
     }
-    return serialString
+    return chosenAttributes
 }
 
 
-const mintAttributes = (numberToMint) => {
-
+const mintAttributes = async (numberToMint) => {
 
     // 1) Define how many attributes there are
     // Car shape * 3
@@ -166,13 +209,13 @@ const mintAttributes = (numberToMint) => {
     var wheelsMin = [3000, 3000, 500, 500] // 4 shapes, black slightly rarer
     var wheelsCurrent = new Array(wheelsMin.length).fill(0);
     var spoilersMax = [7000, 3000, 3000] // 3 shapes, 'none' most common
-    var spoilersMin = [5000, 1000, 1000] // 3 shapes, 'none' most common
+    var spoilersMin = [4000, 1000, 1000] // 3 shapes, 'none' most common
     var spoilersCurrent = new Array(spoilersMin.length).fill(0);
     var bodyTrimMax = [5000, 5000, 5000, 250, 250, 1] // 6 shapes, var4 and 5 rare var6 unique
     var bodyTrimMin = [2000, 2000, 2000, 100, 100, 1] // 6 shapes, var4 and 5 rare var6 unique
     var bodyTrimCurrent = new Array(bodyTrimMin.length).fill(0);
     var colourMax = [2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 500, 500, 500, 500, 500, 100, 100, 100, 1, 1] // 20 shapes, vars 0-9 common, 10-14 uncommon, 15-17 rare, 18-19 unique
-    var colourMin = [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 150, 150, 150, 150, 150, 20, 20, 20, 1, 1] // 20 shapes, vars 0-8 common, 9-14 uncommon, 15-17 rare, 18-19 unique
+    var colourMin = [ 500,  500,  500,  500,  500,  500,  500,  500,  500,  500, 150, 150, 150, 150, 150,  20,  20,  20, 1, 1] // 20 shapes, vars 0-8 common, 9-14 uncommon, 15-17 rare, 18-19 unique
     var colourCurrent = new Array(colourMin.length).fill(0);
     var colourFinishMax = [4000, 4000, 4000] // 3 shapes, all common
     var colourFinishMin = [2000, 2000, 2000] // 3 shapes, all common
@@ -183,11 +226,11 @@ const mintAttributes = (numberToMint) => {
     var borderMax = [7000, 4000, 1000, 400] // 4 shapes, common, uncommon, rare, epic
     var borderMin = [5000, 2000, 500, 100] // 4 shapes, common, uncommon, rare, epic
     var borderCurrent = new Array(borderMin.length).fill(0);
-    var platesMax = [3000, 3000, 3000, 3000, 3000, 3000, 500, 500, 500, 100, 100, 1, 1, 1, 1] // 15 shapes, vars 0-5 common, 6-8 uncommon, 9-10 rare, 11-14 unique 
-    var platesMin = [1000, 1000, 1000, 1000, 1000, 1000, 150, 150, 150, 20, 20, 1, 1, 1, 1] // 15 shapes, vars 0-5 common, 6-8 uncommon, 9-10 rare, 11-14 unique 
+    var platesMax = [3000, 3000, 3000, 3000, 3000, 3000, 500, 500, 500, 100, 100, 1, 1, 1, 1, 0] // 16 shapes, vars 0-5 common, 6-8 uncommon, 9-10 rare, 11-14 unique, 15 if you use the golden plates 
+    var platesMin = [1000, 1000, 1000, 1000, 1000, 1000, 150, 150, 150, 20, 20, 1, 1, 1, 1, 0] // 16 shapes, vars 0-5 common, 6-8 uncommon, 9-10 rare, 11-14 unique, 15 if you use the golden plates
     var platesCurrent = new Array(platesMin.length).fill(0);
-    var goldenPlatesMax = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] // these are the backup plates for differentiating forced epics which match all other traits
-    var goldenPlatesMin = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] // these are the backup plates for differentiating forced epics which match all other traits
+    var goldenPlatesMax = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0] // these are the backup plates for differentiating forced epics which match all other traits
+    var goldenPlatesMin = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] // ten slots then an eleventh just for a placeholder if you don't use it
     var goldenPlatesCurrent = new Array(goldenPlatesMin.length).fill(0);
 
     var allMaxs = [carShapeMax, wheelsMax, spoilersMax, bodyTrimMax, colourMax, colourFinishMax, backgroundMax, borderMax, platesMax, goldenPlatesMax]
@@ -200,12 +243,14 @@ const mintAttributes = (numberToMint) => {
     
     // 4) read a txt file of the nft codes already minted or create one that's new if current = 0
     try {
-        var currentMints = fs.readFileSync('identifierList.txt').toString().split(os.EOL);
+        var currentMints = fs.readFileSync('identifierList.txt', 'utf-8').split(`\n`);
         // DO NOT CONVERT THIS TO AN INTEGER
-        if (currentMints.length == 1 && (isNaN(currentMints[0]) || currentMints[0] == "")) {
+        if (currentMints.length == 1 && currentMints[0] == "") {
             // console.log(`empty file`)
             currentMints = [];
         }
+        if (currentMints[currentMints.length-1] == "") {currentMints.pop()}
+        // just in case there's a blank line at the end
     }
     catch(err) {
         // console.log(`no file exists`)
@@ -215,7 +260,7 @@ const mintAttributes = (numberToMint) => {
 
     // 5) if there are current codes already minted go through and update the current arrays
     if (currentMints.length != 0) {
-        allCurrents = decodeAttributesToCurrents(currentMints, allCurrents);
+        allCurrents = await decodeAttributesToCurrents(currentMints, allCurrents);
     }
 
     // 6) Define the number of NFTs to mint in this cycle - must be less than Final - currentMints.length
@@ -228,64 +273,38 @@ const mintAttributes = (numberToMint) => {
     // done this above - it's currentMints
 
     // 8) loop thru the number of NFTs to mint 
+    for (let i = 0; i < numberToMint; i++) {
     // 9) choose each attribute
-    // 10) before confirming the NFT attribute combo check that it's not been used before
-    // either use the search function   arr.indexOf("searchterm") and -1 means not found or try  arr.includes("searchterm") returns boolean - start with latter
-    // 11) if it has go back to step 8 for a max of 10 iterations until no match is found
-    // 12) if there's still a match add use one of 10 golden attributes that are only used for this final swap - this is likely only a problem for epics at the very end of the minting process
-    // 13) Once a unique is confirmed convert to a number add it to the flat file and the "current" array for checking
-
-}
-
-const init = () => {
-    //definables
-//    var colourTargets = [2000, 2000, 1000, 1000, 1000, 500, 500, 500, 235, 235, 10, 10, 3, 3, 1, 1, 1, 1];
-    var colourMaximum = [4000, 4000, 2000, 2000, 2000, 750, 750, 750, 250, 250, 10, 10, 3, 3, 1, 1, 1, 1];
-    var colourMinimum = [1000, 1000,  500,  500,  500, 250, 250, 250, 100, 100,  5,  5, 3, 3, 1, 1, 1, 1];
-    var targetIssuance = 9000;
-    
-    //calculated
-    var colourCurrent = [   0,    0,    0,    0,    0,   0,   0,   0,   0,   0,  0,  0, 0, 0, 0, 0, 0, 0];        
-    let colourMinRemain = [];
-    let colourForcedToMint = 0;
-    let leftToMint = 0;
-    let colourMaxRemain = [];
-    let colourRandBoundaries = [];
-
-
-    for (let i = 0; i < targetIssuance; i++) {
-        colourMinRemain = arrayFloorSubtract(colourMinimum, colourCurrent);
-        colourForcedToMint = arrayTotal(colourMinRemain);
-        leftToMint = targetIssuance - arrayTotal(colourCurrent)
-        colourMaxRemain = arrayMaxMint(colourMaximum, colourCurrent, colourMinRemain, leftToMint - colourForcedToMint);
-        colourRandBoundaries = arrayBoundaries(colourMaxRemain);
-
-        thisBucket = whichBucket(colourRandBoundaries);
-        colourCurrent[thisBucket]++;
-
-        if ((i+1) % 2000 == 0) {
-            console.log(`\nIteration ${i+1}...`)
-            console.log(`colourCurrent: ${colourCurrent}`)
+        let thisSerialNumber = "";
+        let thisAttributes = [];
+        let dupeFound = true;
+        for (let j = 0; j < 100; j++) {
+            thisAttributes = await chooseAttributes(allMaxs, allMins, allCurrents, targetIssuance, false)
+            // 10) before confirming the NFT attribute combo check that it's not been used before
+            thisSerialNumber = await createSerialNumber(thisAttributes);
+            dupeFound = currentMints.includes(thisSerialNumber);
+            if (dupeFound == false) {break}
+            // console.log(`Dupe found - relooping`)
+            // 11) if it has go back to step 9 for a max of 100 iterations until no match is found
         }
-        if (i > 8990){
-            console.log(`\nIteration ${i+1}...`)
-            console.log(`colourMinRemain: ${colourMinRemain}`)
-            console.log(`colourMaxRemain: ${colourMaxRemain}`)
-            console.log(`colourForcedToMint: ${colourForcedToMint}`)
-            console.log(`leftToMint: ${leftToMint}`)
-            console.log(`colourRandBoundaries: ${colourRandBoundaries}`)
-            console.log(`colourCurrent: ${colourCurrent}`)
-
+        if (dupeFound == true) {
+            // 12) if there's still a match add use one of 10 golden attributes that are only used for this final swap - this is likely only a problem for epics at the very end of the minting process
+            console.log(`Dupe clean failed - using Golden plate`)
+            thisAttributes = await chooseAttributes(allMaxs, allMins, allCurrents, targetIssuance, true)
+            thisSerialNumber = await createSerialNumber(thisAttributes);
+            dupeFound = currentMints.includes(thisSerialNumber);
+            if (dupeFound) {
+                console.log(`even after using a golden number plate we still have a dupe! ${thisSerialNumber}`)
+                return
+            }
         }
+        // 13) Once a unique is confirmed add it to the flat file and the "current" array for checking
+        currentMints.push(thisSerialNumber)
+        await writeStream.write(thisSerialNumber+'\n')
     }
-
-    console.log(`\nFinal Allocations:`)
-    console.log(`colourCurrent: ${colourCurrent}`)
-
-    console.log(`Original Min: ${colourMinimum}`)
-    console.log(`Original Max: ${colourMaximum}`)
-
 }
+
 
 //init();
-mintAttributes();
+mintAttributes(9000);
+// testingFn();
