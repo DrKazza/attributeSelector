@@ -96,7 +96,7 @@ const arrayBoundaries = (maxMints) => {
     }
 }
 
-const whichBucket = async (bucketBoundaries) => {
+const whichBucket = (bucketBoundaries) => {
     let maxRand = bucketBoundaries[bucketBoundaries.length - 1]
     let rand = Math.floor(Math.random()*maxRand)  // 0 - MaxRand
     let bucket = 0;
@@ -109,7 +109,7 @@ const whichBucket = async (bucketBoundaries) => {
     return [bucket, maxRand, rand]
 }
 
-const decodeAttributesToCurrents = async (currentMints, currentVariableArray) => {
+const decodeAttributesToCurrents = (currentMints, currentVariableArray) => {
     for (let i = 0; i < currentMints.length; i++) {
         thisSerialNumber = currentMints[i];
         // the first digit is 7 ignore that
@@ -129,7 +129,7 @@ const decodeAttributesToCurrents = async (currentMints, currentVariableArray) =>
     return currentVariableArray
 }
 
-const createSerialNumber = async (attributes) => {
+const createSerialNumber = (attributes) => {
     if (attributes.length != 10) {
         console.log(`Need 10 Attributes, only got ${attributes.length}`)
         return
@@ -143,7 +143,7 @@ const createSerialNumber = async (attributes) => {
     }
 }
 
-const chooseAttributes = async (arrayMax, arrayMin, arrayCurrent, totalIssuance, useSpecial) => {
+const chooseAttributes = (arrayMax, arrayMin, arrayCurrent, totalIssuance, useSpecial) => {
     let numOfAttributes = arrayMax.length;
     let numIssued = arrayTotal(arrayCurrent[0]);
     let leftToMint = totalIssuance - numIssued
@@ -161,26 +161,31 @@ const chooseAttributes = async (arrayMax, arrayMin, arrayCurrent, totalIssuance,
             chosenAttributes.push(arrayCurrent[i].length-1);
         } else {
             let thisMinRemain = arrayFloorSubtract(arrayMin[i], arrayCurrent[i]);
-
             let thisForcedToMint = arrayTotal(thisMinRemain);
             let thisMaxRemain = arrayMaxMint(arrayMax[i], arrayCurrent[i], arrayMin[i], leftToMint - thisForcedToMint);
             let thisRandBoundaries = arrayBoundaries(thisMaxRemain);
             
-            let thisBucket = await whichBucket(thisRandBoundaries);
+            let thisBucket = whichBucket(thisRandBoundaries);
             
-            if (thisMaxRemain[thisBucket] == 0) {
-                console.log(`failed when:`)
-                console.log(`thisForcedToMint ${thisForcedToMint}`)
-                console.log(`thisMinRemain ${thisMinRemain}`)
-                console.log(`thisMaxRemain ${thisMaxRemain}`)
-                console.log(`thisRandBoundaries ${thisRandBoundaries}`)
-                console.log(`thisBucket ${thisBucket}`)    
-            }
-
+            // if (thisMaxRemain[thisBucket] == 0) {
+            //     console.log(`failed when:`)
+            //     console.log(`thisForcedToMint ${thisForcedToMint}`)
+            //     console.log(`thisMinRemain ${thisMinRemain}`)
+            //     console.log(`thisMaxRemain ${thisMaxRemain}`)
+            //     console.log(`thisRandBoundaries ${thisRandBoundaries}`)
+            //     console.log(`thisBucket ${thisBucket}`)    
+            // }
             chosenAttributes.push(thisBucket[0]);    
         }
     }
     return chosenAttributes
+}
+
+const addNewCurrent = (currentTotals, thisSetOfAttributes) => {
+    for (let i = 0; i < thisSetOfAttributes.length; i++) {
+        currentTotals[i][thisSetOfAttributes[i]]++;
+    }
+    return currentTotals
 }
 
 
@@ -243,7 +248,7 @@ const mintAttributes = async (numberToMint) => {
     
     // 4) read a txt file of the nft codes already minted or create one that's new if current = 0
     try {
-        var currentMints = fs.readFileSync('identifierList.txt', 'utf-8').split(`\n`);
+        var currentMints = await fs.readFileSync('identifierList.txt', 'utf-8').split(`\n`);
         // DO NOT CONVERT THIS TO AN INTEGER
         if (currentMints.length == 1 && currentMints[0] == "") {
             // console.log(`empty file`)
@@ -260,7 +265,7 @@ const mintAttributes = async (numberToMint) => {
 
     // 5) if there are current codes already minted go through and update the current arrays
     if (currentMints.length != 0) {
-        allCurrents = await decodeAttributesToCurrents(currentMints, allCurrents);
+        allCurrents = decodeAttributesToCurrents(currentMints, allCurrents);
     }
 
     // 6) Define the number of NFTs to mint in this cycle - must be less than Final - currentMints.length
@@ -279,9 +284,9 @@ const mintAttributes = async (numberToMint) => {
         let thisAttributes = [];
         let dupeFound = true;
         for (let j = 0; j < 100; j++) {
-            thisAttributes = await chooseAttributes(allMaxs, allMins, allCurrents, targetIssuance, false)
+            thisAttributes = chooseAttributes(allMaxs, allMins, allCurrents, targetIssuance, false)
             // 10) before confirming the NFT attribute combo check that it's not been used before
-            thisSerialNumber = await createSerialNumber(thisAttributes);
+            thisSerialNumber = createSerialNumber(thisAttributes);
             dupeFound = currentMints.includes(thisSerialNumber);
             if (dupeFound == false) {break}
             // console.log(`Dupe found - relooping`)
@@ -290,17 +295,18 @@ const mintAttributes = async (numberToMint) => {
         if (dupeFound == true) {
             // 12) if there's still a match add use one of 10 golden attributes that are only used for this final swap - this is likely only a problem for epics at the very end of the minting process
             console.log(`Dupe clean failed - using Golden plate`)
-            thisAttributes = await chooseAttributes(allMaxs, allMins, allCurrents, targetIssuance, true)
-            thisSerialNumber = await createSerialNumber(thisAttributes);
+            thisAttributes = chooseAttributes(allMaxs, allMins, allCurrents, targetIssuance, true)
+            thisSerialNumber = createSerialNumber(thisAttributes);
             dupeFound = currentMints.includes(thisSerialNumber);
             if (dupeFound) {
                 console.log(`even after using a golden number plate we still have a dupe! ${thisSerialNumber}`)
                 return
             }
         }
-        // 13) Once a unique is confirmed add it to the flat file and the "current" array for checking
-        currentMints.push(thisSerialNumber)
-        await writeStream.write(thisSerialNumber+'\n')
+        // 13) Once a unique is confirmed add it to the flat file, the currentMints and the "allCurrents" array for checking
+        currentMints.push(thisSerialNumber);
+        allCurrents = addNewCurrent(allCurrents, thisAttributes);
+        writeStream.write(thisSerialNumber+'\n');
     }
 }
 
