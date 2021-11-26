@@ -65,7 +65,7 @@ console.log(
       ' Adapted by '
     ) +
       chalk.red('DrKazza \n\n') +
-      chalk.blue(' - extended from an idea\n - by NotLuksus'),
+      chalk.blue(' - extended from an\n  idea by NotLuksus'),
     { borderColor: 'red', padding: 2 }
   )
 );
