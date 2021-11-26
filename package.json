@@ -2,6 +2,7 @@
   "name": "attributeselector",
   "version": "1.0.0",
   "description": "Quasi Random Attribute Selector",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -17,7 +18,10 @@
   },
   "homepage": "https://github.com/DrKazza/attributeSelector#readme",
   "dependencies": {
-    "fs": "0.0.1-security",
-    "os": "^0.1.2"
-  }
+    "boxen": "^6.2.1",
+    "chalk": "^5.0.0",
+    "dotenv": "^10.0.0",
+    "minimist": "^1.2.5"
+  },
+  "keywords": []
 }
