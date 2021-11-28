@@ -1,0 +1,41 @@
+{
+  "metaData": {
+    "name": "",
+    "description": ""
+  },
+  "useCustomNames": 0,
+  "generateMetadata": true,
+  "basePath": "/home/drkazza/Documents/GitHub/attributeSelector/assets.dist/",
+  "outputPath": "/home/drkazza/Documents/GitHub/attributeSelector/assets.dist/output/",
+  "imageUrl": "https://ipfs.io/ipfs/xxxx/",
+  "order": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "weights": {
+    "Black#1.png": 0,
+    "High#20.png": 2,
+    "Low#40.png": 10,
+    "Middle#40.png": 35,
+    "Cyan#1.png": 2,
+    "Green#1.png": 0,
+    "Pink#1.png": 53,
+    "Purple#1.png": 35,
+    "Red#1.png": 35,
+    "Yellow#10.png": 10,
+    "Red#50.png": 35,
+    "White#50.png": 35,
+    "Large#20.png": 53,
+    "Medium#20.png": 53,
+    "Small#60.png": 53,
+    "Shapes#100.png": 10,
+    "High#30.png": 2,
+    "Low#20.png": 0,
+    "Middle#50.png": 53
+  }
+}

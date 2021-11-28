@@ -6,10 +6,11 @@ import dotenv from 'dotenv';
 dotenv.config();
 import chalk from 'chalk';
 import boxen from 'boxen';
-// const ora = require('ora');
-// const inquirer = require('inquirer');
+import ora from 'ora';
+import inquirer from 'inquirer';
 import fs from 'fs';
-// const { readFile, writeFile, readdir } = require("fs").promises;
+const fsPromises = fs.promises;
+// import { readFile, writeFile, readdir } from ("fs").promises;
 // const mergeImages = require('merge-images');
 // const { Image, Canvas } = require('canvas');
 // const ImageDataURI = require('image-data-uri');
@@ -17,34 +18,23 @@ import {mintAttributes} from './mintAttributes.js';
 import {traitRarity} from './traitRarity.config.js';
 
 //SETTINGS
-// let basePath;
-// let outputPath;
-// let traits;
-// let traitsToSort = [];
-// let order = [];
-// let weights = {};
-// let names = {};
+let basePath;
+let outputPath;
+let traits;
+let traitsToSort = [];
+let order = []; 
+let weights = {};
+let names = {};
 // let weightedTraits = [];
 // let seen = [];
-// let metaData = {};
-// let config = {
-//   metaData: {},
-//   useCustomNames: null,
-//   deleteDuplicates: null,
-//   generateMetadata: null,
-// };
-// import minimist from 'minimist';
-import { argv } from 'process';
-const getOptions = (argv) => {
-  let args = []
-  if(!argv) {
-    args = process.argv.slice(2);
-  }
-  return args
-}
-
-let args = getOptions()
-console.log(`args: ${args}`)
+let metaData = {};
+let config = {
+  metaData: {},
+  useCustomNames: null,
+  generateMetadata: null,
+};
+import minimist from 'minimist';
+const argv = minimist(process.argv.slice(2));
 
 //DEFINITIONS
 const getDirectories = source =>
@@ -69,17 +59,14 @@ console.log(
     { borderColor: 'red', padding: 2 }
   )
 );
-//main();
+main();
+
+
 
 async function main() {
-
-
-
-
   await loadConfig();
   await getBasePath();
   await getOutputPath();
-  await checkForDuplicates();
   await generateMetadataPrompt();
   if (config.generateMetadata) {
     await metadataSettings();
@@ -97,13 +84,17 @@ async function main() {
   await asyncForEach(traits, async trait => {
     await setNames(trait);
   });
+
+  // this is where I need to look for a weighting file 
   await asyncForEach(traits, async trait => {
     await setWeights(trait);
   });
+
   const generatingImages = ora('Generating images');
   generatingImages.color = 'yellow';
   generatingImages.start();
-  await generateImages();
+  // this needs totally rebuilding
+  // await generateImages();
   await sleep(2);
   generatingImages.succeed('All images generated!');
   generatingImages.clear();
@@ -111,7 +102,7 @@ async function main() {
     const writingMetadata = ora('Exporting metadata');
     writingMetadata.color = 'yellow';
     writingMetadata.start();
-    await writeMetadata();
+    // await writeMetadata();
     await sleep(0.5);
     writingMetadata.succeed('Exported metadata successfully');
     writingMetadata.clear();
@@ -125,6 +116,8 @@ async function main() {
     writingConfig.succeed('Saved configuration successfully');
     writingConfig.clear();
   }
+  console.log(weights)
+
 }
 
 //GET THE BASEPATH FOR THE IMAGES
@@ -145,7 +138,7 @@ async function getBasePath() {
     },
   ]);
   if (base_path === 0) {
-    basePath = process.cwd() + '/images/';
+    basePath = process.cwd() + '/';
   } else {
     const { file_location } = await inquirer.prompt([
       {
@@ -186,7 +179,7 @@ async function getOutputPath() {
         type: 'input',
         name: 'file_location',
         message:
-          'Enter the path to your output_old directory (Absolute filepath)',
+          'Enter the path to your output directory (Absolute filepath)',
       },
     ]);
     let lastChar = file_location.slice(-1);
@@ -196,26 +189,13 @@ async function getOutputPath() {
   config.outputPath = outputPath;
 }
 
-async function checkForDuplicates() {
-  if (config.deleteDuplicates !== null) return;
-  let { checkDuplicates } = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'checkDuplicates',
-      message:
-        'Should duplicated images be deleted? (Might result in less images then expected)',
-    },
-  ]);
-  config.deleteDuplicates = checkDuplicates;
-}
-
 async function generateMetadataPrompt() {
   if (config.generateMetadata !== null) return;
   let { createMetadata } = await inquirer.prompt([
     {
       type: 'confirm',
       name: 'createMetadata',
-      message: 'Should metadata be generated?',
+      message: 'Should individual metadata be generated?',
     },
   ]);
   config.generateMetadata = createMetadata;
@@ -237,17 +217,13 @@ async function metadataSettings() {
     {
       type: 'input',
       name: 'metadataImageUrl',
-      message: 'What should be the image url? (Generated format is URL/ID)',
-    },
-    {
-      type: 'confirm',
-      name: 'splitFiles',
-      message: 'Should JSON metadata be split in multiple files?',
-    },
+      message: 'What should be the image url? (Generated format is URL/ID.json)',
+      default: 'https://ipfs.io/ipfs/xxxx/',
+    }
   ]);
   config.metaData.name = responses.metadataName;
   config.metaData.description = responses.metadataDescription;
-  config.metaData.splitFiles = responses.splitFiles;
+  // config.metaData.splitFiles = responses.splitFiles;
   let lastChar = responses.metadataImageUrl.slice(-1);
   if (lastChar === '/') config.imageUrl = responses.metadataImageUrl;
   else config.imageUrl = responses.metadataImageUrl + '/';
@@ -332,15 +308,21 @@ async function setWeights(trait) {
   if (config.weights && Object.keys(config.weights).length === Object.keys(names).length ) {
     weights = config.weights;
     return;
-  }
+  }  
   const files = await getFilesForTrait(trait);
+  const rarityPrompt = [];
+  Object.keys(traitRarity).forEach(key => {
+    rarityPrompt.push({
+      name: key, value: traitRarity[key]
+    })
+  });
   const weightPrompt = [];
   files.forEach((file, i) => {
     weightPrompt.push({
-      type: 'input',
+      type: 'list',
       name: names[file] + '_weight',
-      message: 'How many ' + names[file] + ' ' + trait + ' should there be?',
-      default: parseInt(Math.round(10000 / files.length)),
+      message: 'What rarity should ' + names[file] + ' ' + trait + ' be?',
+      choices: rarityPrompt,
     });
   });
   const selectedWeights = await inquirer.prompt(weightPrompt);
@@ -377,40 +359,26 @@ async function generateImages() {
   let images = [];
   let id = 0;
   await generateWeightedTraits();
-  if (config.deleteDuplicates) {
-    while (!Object.values(weightedTraits).filter(arr => arr.length == 0).length && noMoreMatches < 20000) {
-      let picked = [];
-      order.forEach(id => {
-        let pickedImgId = pickRandom(weightedTraits[id]);
-        picked.push(pickedImgId);
-        let pickedImg = weightedTraits[id][pickedImgId];
-        images.push(basePath + traits[id] + '/' + pickedImg);
-      });
 
-      if (existCombination(images)) {
-        noMoreMatches++;
-        images = [];
-      } else {
-        generateMetadataObject(id, images);
-        noMoreMatches = 0;
-        order.forEach((id, i) => {
-          remove(weightedTraits[id], picked[i]);
-        });
-        seen.push(images);
-        const b64 = await mergeImages(images, { Canvas: Canvas, Image: Image });
-        await ImageDataURI.outputFile(b64, outputPath + `${id}.png`);
-        images = [];
-        id++;
-      }
-    }
-  } else {
-    while (!Object.values(weightedTraits).filter(arr => arr.length == 0).length) {
-      order.forEach(id => {
-        images.push(
-          basePath + traits[id] + '/' + pickRandomAndRemove(weightedTraits[id])
-        );
-      });
+  while (!Object.values(weightedTraits).filter(arr => arr.length == 0).length && noMoreMatches < 20000) {
+    let picked = [];
+    order.forEach(id => {
+      let pickedImgId = pickRandom(weightedTraits[id]);
+      picked.push(pickedImgId);
+      let pickedImg = weightedTraits[id][pickedImgId];
+      images.push(basePath + traits[id] + '/' + pickedImg);
+    });
+
+    if (existCombination(images)) {
+      noMoreMatches++;
+      images = [];
+    } else {
       generateMetadataObject(id, images);
+      noMoreMatches = 0;
+      order.forEach((id, i) => {
+        remove(weightedTraits[id], picked[i]);
+      });
+      seen.push(images);
       const b64 = await mergeImages(images, { Canvas: Canvas, Image: Image });
       await ImageDataURI.outputFile(b64, outputPath + `${id}.png`);
       images = [];
@@ -470,32 +438,26 @@ function generateMetadataObject(id, images) {
 }
 
 async function writeMetadata() {
-  if(config.metaData.splitFiles)
-  {
-    let metadata_output_dir = outputPath + "metadata/"
-    if (!fs.existsSync(metadata_output_dir)) {
-      fs.mkdirSync(metadata_output_dir, { recursive: true });
-    }
-    for (var key in metaData){
-      await writeFile(metadata_output_dir + key, JSON.stringify(metaData[key]));
-    }
-  }else
-  {
-    await writeFile(outputPath + 'metadata.json', JSON.stringify(metaData));
+  let metadata_output_dir = outputPath + "metadata/"
+  if (!fs.existsSync(metadata_output_dir)) {
+    fs.mkdirSync(metadata_output_dir, { recursive: true });
+  }
+  for (var key in metaData){
+    await fs.promises.writeFile(metadata_output_dir + key + '.json', JSON.stringify(metaData[key]));
   }
 }
 
 async function loadConfig() {
   try {
-    const data = await readFile('config.json')
+    const data = await fs.promises.readFile('config.json')
     config = JSON.parse(data.toString());
   } catch (error) {}
 }
 
 async function writeConfig() {
-  await writeFile('config.json', JSON.stringify(config, null, 2));
+  await fs.promises.writeFile('config.json', JSON.stringify(config, null, 2));
 }
 
 async function getFilesForTrait(trait) {
-  return (await readdir(basePath + '/' + trait)).filter(file => file !== '.DS_Store');
+  return (await fs.promises.readdir(basePath + '/' + trait)).filter(file => file !== '.DS_Store');
 }

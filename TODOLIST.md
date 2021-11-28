@@ -1,15 +1,15 @@
 /*
-Where are images located?
-Where should images be exported?
-    automatically remove duplicates
-Generate Metadata
-    script do update Metadata with additional comments and or changing the IPFS
-ask for ImageNameprefix - add suffix
-ask for description for Metadata
+Y Where are images located?
+Y Where should images be exported?
+Y    automatically remove duplicates
+Y Generate Metadata
+X    script to update Metadata with additional comments and or changing the IPFS
+Y ask for ImageNameprefix - add suffix
+Y ask for description for Metadata
 Image URL - don;t ask just insert placeholder
-Look for image folders:
-    For each image folder ask about layer order
-Traits:
+Y Look for image folders:
+Y    For each image folder ask about layer order
+x Traits:
     in each image folder look for a min/max for each trait
     if no min/max exists assign:
         Common  50%
@@ -24,6 +24,7 @@ check the max to mint
 
 select randomised traits using my formula
 
+Check metadata details
 *all images generated*
 *exported metadata*
 *saved config*
