@@ -18,24 +18,60 @@
     6
   ],
   "weights": {
-    "Black#1.png": 0,
-    "High#20.png": 2,
-    "Low#40.png": 10,
-    "Middle#40.png": 35,
-    "Cyan#1.png": 2,
-    "Green#1.png": 0,
-    "Pink#1.png": 53,
-    "Purple#1.png": 35,
-    "Red#1.png": 35,
+    "Black#1.png": 35,
+    "High#20.png": 53,
+    "Low#40.png": 35,
+    "Middle#40.png": 53,
+    "Cyan#1.png": 53,
+    "Green#1.png": 35,
+    "Pink#1.png": 0,
+    "Purple#1.png": 2,
+    "Red#1.png": 0,
     "Yellow#10.png": 10,
     "Red#50.png": 35,
-    "White#50.png": 35,
+    "White#50.png": 53,
     "Large#20.png": 53,
     "Medium#20.png": 53,
     "Small#60.png": 53,
-    "Shapes#100.png": 10,
-    "High#30.png": 2,
-    "Low#20.png": 0,
+    "Shapes#100.png": 35,
+    "High#30.png": 53,
+    "Low#20.png": 35,
     "Middle#50.png": 53
-  }
+  },
+  "weightedTraits": {
+    "Background": [
+      100
+    ],
+    "Bottom lid": [
+      37,
+      24,
+      37
+    ],
+    "Eye color": [
+      53,
+      35,
+      0,
+      2,
+      0,
+      10
+    ],
+    "Eyeball": [
+      39,
+      60
+    ],
+    "Iris": [
+      33,
+      33,
+      33
+    ],
+    "Shine": [
+      100
+    ],
+    "Top lid": [
+      37,
+      24,
+      37
+    ]
+  },
+  "totalIssuance": "500"
 }

@@ -10,12 +10,15 @@ import ora from 'ora';
 import inquirer from 'inquirer';
 import fs from 'fs';
 const fsPromises = fs.promises;
+import minimist from 'minimist';
+const argv = minimist(process.argv.slice(2));
 // import { readFile, writeFile, readdir } from ("fs").promises;
 // const mergeImages = require('merge-images');
 // const { Image, Canvas } = require('canvas');
 // const ImageDataURI = require('image-data-uri');
 import {mintAttributes} from './mintAttributes.js';
 import {traitRarity} from './traitRarity.config.js';
+import exp from 'constants';
 
 //SETTINGS
 let basePath;
@@ -25,7 +28,6 @@ let traitsToSort = [];
 let order = []; 
 let weights = {};
 let names = {};
-// let weightedTraits = [];
 // let seen = [];
 let metaData = {};
 let config = {
@@ -33,8 +35,13 @@ let config = {
   useCustomNames: null,
   generateMetadata: null,
 };
-import minimist from 'minimist';
-const argv = minimist(process.argv.slice(2));
+let mintNow;
+let totalIssuance;
+let alreadMinted;
+let existingMints = [];
+let newMints = [];
+let weightedTraits = {};
+
 
 //DEFINITIONS
 const getDirectories = source =>
@@ -84,11 +91,45 @@ async function main() {
   await asyncForEach(traits, async trait => {
     await setNames(trait);
   });
-
-  // this is where I need to look for a weighting file 
   await asyncForEach(traits, async trait => {
     await setWeights(trait);
   });
+
+  await totalIssuancePrompt();
+
+  const loadingExistingMints = ora('Checking for existing mints');
+  loadingExistingMints.color = 'yellow';
+  loadingExistingMints.start();
+  await getExistingMints();
+  await sleep(2);
+  loadingExistingMints.succeed();
+  loadingExistingMints.clear();
+  if (existingMints.length > totalIssuance) {
+    console.log(`Existing NFT collection: ${existingMints.length}, is larger than the total issuance: ${totalIssuance}`)
+    return
+  } else if (existingMints.length === totalIssuance) {
+    console.log(`All NFTs have been already minted.`)
+    return
+  }
+  
+  if (!argv['mint'] || parseInt(argv['mint']) > config.totalIssuance){
+    await mintNowPrompt(config.totalIssuance - existingMints.length);
+  }
+
+  // generate arrays for min/max & currents
+  var [minArray, maxArray, currentArray] = generateMinMaxArrays(weightedTraits, config.totalIssuance)
+  // populate currentArray with current numbers
+  currentArray = updateCurrentArray(currentArray, existingMints)
+
+  // generate new mint serial numbers***
+  // get rid of the golden trait stuff
+
+  // remember to add each serial number to the currents
+  // save serial numbers of all mints (including new ones)
+  
+  // for the new mints ONLY - generate the images and metadata below
+
+
 
   const generatingImages = ora('Generating images');
   generatingImages.color = 'yellow';
@@ -102,6 +143,7 @@ async function main() {
     const writingMetadata = ora('Exporting metadata');
     writingMetadata.color = 'yellow';
     writingMetadata.start();
+    // totally rebuild this
     // await writeMetadata();
     await sleep(0.5);
     writingMetadata.succeed('Exported metadata successfully');
@@ -116,8 +158,6 @@ async function main() {
     writingConfig.succeed('Saved configuration successfully');
     writingConfig.clear();
   }
-  console.log(weights)
-
 }
 
 //GET THE BASEPATH FOR THE IMAGES
@@ -307,6 +347,7 @@ async function setNames(trait) {
 async function setWeights(trait) {
   if (config.weights && Object.keys(config.weights).length === Object.keys(names).length ) {
     weights = config.weights;
+    weightedTraits = config.weightedTraits
     return;
   }  
   const files = await getFilesForTrait(trait);
@@ -326,10 +367,23 @@ async function setWeights(trait) {
     });
   });
   const selectedWeights = await inquirer.prompt(weightPrompt);
+  let totalProbability = 0
   files.forEach((file, i) => {
     weights[file] = selectedWeights[names[file] + '_weight'];
+    totalProbability += weights[file]
   });
+
+  if (totalProbability === 0) {
+    var traitArray = new Array(files.length).fill(100);
+  } else {
+    var traitArray = new Array(files.length).fill(0);
+    for (let j = 0; j < files.length; j++) {
+      traitArray[j] = Math.floor(100 * weights[files[j]] / totalProbability);
+    }
+  }
+  weightedTraits[trait] = traitArray
   config.weights = weights;
+  config.weightedTraits = weightedTraits
 }
 
 //ASYNC FOREACH
@@ -338,6 +392,106 @@ async function asyncForEach(array, callback) {
     await callback(array[index], index, array);
   }
 }
+
+
+async function totalIssuancePrompt() {
+  if (config.totalIssuance && Object.keys(config.totalIssuance).length !== 0) return;
+  let responses = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'totalIssuance',
+      message: 'What is the maximum to be minted ever?',
+    }
+  ]);
+  totalIssuance = responses.totalIssuance;
+  config.totalIssuance = totalIssuance;
+}
+
+async function mintNowPrompt(maxLeft) {
+  let responses = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'mintNow',
+      message: 'How many would you like to mint right now? (max: ' + maxLeft + ')',
+      default: maxLeft,
+    }
+  ]);
+  mintNow = responses.mintNow
+}
+
+async function getExistingMints () {
+  try {
+    existingMints = await fs.readFileSync('identifierList.txt', 'utf-8').split(`\n`);
+    if (existingMints.length === 1 && existingMints[0] === "") {
+        // console.log(`empty file`)
+        existingMints = [];
+    }
+    if (existingMints[existingMints.length-1] === "") {existingMints.pop()}
+    // just in case there's a blank line at the end
+  }
+  catch(err) {
+    // console.log(`no file exists`)
+    existingMints = [];
+  }
+}
+
+async function writeExistingMints () {
+  var writeStream = fs.createWriteStream(`identifierList.txt`, {flags: 'w'});
+  // write from scratch each time
+  for (let i = 0; i < existingMints.length; i++)
+  {
+    if(existingMints[i] !== "") {
+      writeStream.write(existingMints[i]+'\n');
+    }  
+  }
+}
+
+function generateMinMaxArrays(baseArray, maxIssuance) {
+  let thisMinArray = {}
+  let thisMaxArray = {}
+  let thisCurrentArray = {}
+  Object.keys(baseArray).forEach(key => {
+    thisMinArray[key] = []
+    thisMaxArray[key] = []
+    thisCurrentArray[key] = []
+    for (let i = 0; i < baseArray[key].length; i++){
+      let expectedMints = maxIssuance * baseArray[key][i] / 100
+      if (expectedMints === 0) {
+        // unique mints
+        thisMinArray[key].push(1);
+        thisMaxArray[key].push(1);
+      } else {        
+        thisMinArray[key].push(parseInt(expectedMints * (1 - 0.025)));
+        thisMaxArray[key].push(parseInt(expectedMints * (1 + 0.025)));  
+      }
+      thisCurrentArray[key].push(0);
+    };
+  });
+  return [thisMinArray, thisMaxArray, thisCurrentArray]
+}
+
+function updateCurrentArray(thisCurrentArray, thisExistingMints) {
+  for (let i = 0; i < thisExistingMints.length; i++) {
+    let thisSerialNumber = thisExistingMints[i];
+    // the first digit is 7 ignore that
+    if (thisSerialNumber.length != 21 || thisSerialNumber.substring(0,1) != "7") {
+        console.log(`Bad serial number at entry ${i}, either doesn't lead with 7 or isn't 21 digits long: ${thisSerialNumber}`)
+    } else {
+      for (let j = 0; j < Math.floor(thisSerialNumber.length / 2); j++) {
+        // the variable j has two digits at j*2 + 1 and j*2 + 3
+        // the two digits make up a number k
+        // add 1 to the thisCurrentArray[j][k]
+        let k = parseInt(thisSerialNumber.substring((2*j+1),(2*j+3)))
+        thisCurrentArray[j][k]++
+      }
+    }
+  }
+  return thisCurrentArray
+}
+
+
+
+
 
 //GENERATE WEIGHTED TRAITS
 async function generateWeightedTraits() {

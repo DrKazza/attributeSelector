@@ -9,8 +9,7 @@ Y ask for description for Metadata
 Image URL - don;t ask just insert placeholder
 Y Look for image folders:
 Y    For each image folder ask about layer order
-x Traits:
-    in each image folder look for a min/max for each trait
+Y Traits:
     if no min/max exists assign:
         Common  50%
         Uncommon 30%
@@ -18,6 +17,9 @@ x Traits:
         Epic    5%
         Unique  1 off
     Filenames for traits or custom
+    For a trait that may not appear have a blank file as a trait called "blank.png"
+    e.g. https://upload.wikimedia.org/wikipedia/en/d/d2/Blank.png
+
 How many to mint
 Check how many have already been minted
 check the max to mint
