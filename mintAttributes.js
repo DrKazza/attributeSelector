@@ -138,5 +138,3 @@ export const mintAttributes = (numberToMint, targetIssuance, allMins, allMaxs, a
     }
     return [thisNewMints, allCurrents, thisCurrentMints];
 }
-
-// module.exports = {mintAttributes};

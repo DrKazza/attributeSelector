@@ -61,7 +61,7 @@ console.log(
       ' Adapted by '
     ) +
       chalk.red('DrKazza \n\n') +
-      chalk.blue(' - extended from an\n  idea by NotLuksus'),
+      chalk.blue(' - original concept\n  by NotLuksus'),
     { borderColor: 'red', padding: 2 }
   )
 );
@@ -96,9 +96,8 @@ async function main() {
 
 
   // check for expected number of variants
-  let realisticCombinations = estimateCombinations(weightedTraits)
-  console.log(realisticCombinations)
-  await totalIssuancePrompt();
+  let realisticCombinations = (estimateCombinations(weightedTraits) * 0.65).toPrecision(2)
+  await totalIssuancePrompt(realisticCombinations);
 
   const loadingExistingMints = ora('Checking for existing mints');
   loadingExistingMints.color = 'yellow';
@@ -116,7 +115,7 @@ async function main() {
   }
   
   if (!argv['mint'] || parseInt(argv['mint']) > config.totalIssuance){
-    await mintNowPrompt(config.totalIssuance - existingMints.length);
+    await mintNowPrompt(config.totalIssuance - existingMints.length, realisticCombinations - existingMints.length);
   }
   var [minArray, maxArray, currentArray] = generateMinMaxArrays(weightedTraits, config.totalIssuance);
   currentArray = updateCurrentArray(currentArray, existingMints);
@@ -391,26 +390,27 @@ async function asyncForEach(array, callback) {
 }
 
 
-async function totalIssuancePrompt() {
+async function totalIssuancePrompt(thisRealisticMints) {
   if (config.totalIssuance && Object.keys(config.totalIssuance).length !== 0) return;
   let responses = await inquirer.prompt([
     {
       type: 'input',
       name: 'totalIssuance',
-      message: 'What is the maximum to be minted ever?',
+      message: 'What is the maximum to be minted ever? (Keep below ' + Number(thisRealisticMints) +' to minimise duplicates)',
+      default: Number(thisRealisticMints)
     }
   ]);
   totalIssuance = responses.totalIssuance;
   config.totalIssuance = totalIssuance;
 }
 
-async function mintNowPrompt(maxLeft) {
+async function mintNowPrompt(maxLeft, thisRealisticMintsLeft) {
   let responses = await inquirer.prompt([
     {
       type: 'input',
       name: 'mintNow',
-      message: 'How many would you like to mint right now? (max: ' + maxLeft + ')',
-      default: maxLeft,
+      message: 'How many would you like to mint right now? (max: ' + Number(maxLeft) + ', recommended: '+ Number(thisRealisticMintsLeft) +')',
+      default: Number(thisRealisticMintsLeft),
     }
   ]);
   mintNow = responses.mintNow
@@ -459,7 +459,7 @@ function generateMinMaxArrays(baseArray, maxIssuance) {
         thisMaxArray[i].push(1);
       } else {        
         thisMinArray[i].push(parseInt(expectedMints * (1 - 0.025)));
-        thisMaxArray[i].push(parseInt(expectedMints * (1 + 0.025)));  
+        thisMaxArray[i].push(parseInt(expectedMints * (1 + 0.075)));  
       }
       thisCurrentArray[i].push(0);
     };
