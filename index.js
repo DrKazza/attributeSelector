@@ -18,7 +18,6 @@ const argv = minimist(process.argv.slice(2));
 // const ImageDataURI = require('image-data-uri');
 import {mintAttributes} from './mintAttributes.js';
 import {traitRarity} from './traitRarity.config.js';
-import exp from 'constants';
 
 //SETTINGS
 let basePath;
@@ -95,6 +94,10 @@ async function main() {
     await setWeights(trait);
   });
 
+
+  // check for expected number of variants
+  let realisticCombinations = estimateCombinations(weightedTraits)
+  console.log(realisticCombinations)
   await totalIssuancePrompt();
 
   const loadingExistingMints = ora('Checking for existing mints');
@@ -115,18 +118,12 @@ async function main() {
   if (!argv['mint'] || parseInt(argv['mint']) > config.totalIssuance){
     await mintNowPrompt(config.totalIssuance - existingMints.length);
   }
-
-  // generate arrays for min/max & currents
-  var [minArray, maxArray, currentArray] = generateMinMaxArrays(weightedTraits, config.totalIssuance)
-  // populate currentArray with current numbers
-  currentArray = updateCurrentArray(currentArray, existingMints)
-
+  var [minArray, maxArray, currentArray] = generateMinMaxArrays(weightedTraits, config.totalIssuance);
+  currentArray = updateCurrentArray(currentArray, existingMints);
   // generate new mint serial numbers***
-  // get rid of the golden trait stuff
+  [newMints, currentArray, existingMints] =  mintAttributes(mintNow, config.totalIssuance, minArray, maxArray, currentArray, existingMints)
+  await writeExistingMints();
 
-  // remember to add each serial number to the currents
-  // save serial numbers of all mints (including new ones)
-  
   // for the new mints ONLY - generate the images and metadata below
 
 
@@ -447,35 +444,35 @@ async function writeExistingMints () {
 }
 
 function generateMinMaxArrays(baseArray, maxIssuance) {
-  let thisMinArray = {}
-  let thisMaxArray = {}
-  let thisCurrentArray = {}
-  Object.keys(baseArray).forEach(key => {
-    thisMinArray[key] = []
-    thisMaxArray[key] = []
-    thisCurrentArray[key] = []
-    for (let i = 0; i < baseArray[key].length; i++){
-      let expectedMints = maxIssuance * baseArray[key][i] / 100
+  let thisMinArray = [];
+  let thisMaxArray = [];
+  let thisCurrentArray = [];
+  Object.keys(baseArray).forEach((key, i) => {
+    thisMinArray[i] = []
+    thisMaxArray[i] = []
+    thisCurrentArray[i] = []
+    for (let j = 0; j < baseArray[key].length; j++){
+      let expectedMints = maxIssuance * baseArray[key][j] / 100
       if (expectedMints === 0) {
         // unique mints
-        thisMinArray[key].push(1);
-        thisMaxArray[key].push(1);
+        thisMinArray[i].push(1);
+        thisMaxArray[i].push(1);
       } else {        
-        thisMinArray[key].push(parseInt(expectedMints * (1 - 0.025)));
-        thisMaxArray[key].push(parseInt(expectedMints * (1 + 0.025)));  
+        thisMinArray[i].push(parseInt(expectedMints * (1 - 0.025)));
+        thisMaxArray[i].push(parseInt(expectedMints * (1 + 0.025)));  
       }
-      thisCurrentArray[key].push(0);
+      thisCurrentArray[i].push(0);
     };
   });
   return [thisMinArray, thisMaxArray, thisCurrentArray]
 }
 
 function updateCurrentArray(thisCurrentArray, thisExistingMints) {
+  let expectedDigits = thisCurrentArray.length * 2 + 1
   for (let i = 0; i < thisExistingMints.length; i++) {
     let thisSerialNumber = thisExistingMints[i];
-    // the first digit is 7 ignore that
-    if (thisSerialNumber.length != 21 || thisSerialNumber.substring(0,1) != "7") {
-        console.log(`Bad serial number at entry ${i}, either doesn't lead with 7 or isn't 21 digits long: ${thisSerialNumber}`)
+    if (thisSerialNumber.length != expectedDigits || thisSerialNumber.substring(0,1) != "7") {
+        console.log(`Bad serial number at entry ${i}, either doesn't lead with 7 or isn't the right length: ${thisSerialNumber}`)
     } else {
       for (let j = 0; j < Math.floor(thisSerialNumber.length / 2); j++) {
         // the variable j has two digits at j*2 + 1 and j*2 + 3
@@ -614,4 +611,26 @@ async function writeConfig() {
 
 async function getFilesForTrait(trait) {
   return (await fs.promises.readdir(basePath + '/' + trait)).filter(file => file !== '.DS_Store');
+}
+
+function estimateCombinations(thisTraitWeights) {
+  let combos = 1;
+  Object.keys(thisTraitWeights).forEach(key => {
+      let percentHurdle = Math.floor(49 / thisTraitWeights[key].length);
+      let realVariables = 0;
+      let residuals = 0;
+      for (let i = 0; i < thisTraitWeights[key].length; i++) {
+        if (thisTraitWeights[key][i] < percentHurdle) {
+          residuals += thisTraitWeights[key][i];
+          if (residuals >= percentHurdle) {
+            realVariables++;
+            residuals = 0;
+          }
+        } else {
+          realVariables++;
+        }
+      }
+      combos *= realVariables;
+    })
+  return combos
 }
