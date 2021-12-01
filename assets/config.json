@@ -5,18 +5,9 @@
   },
   "useCustomNames": 0,
   "generateMetadata": true,
-  "basePath": "/home/drkazza/Documents/GitHub/attributeSelector/assets.dist/",
-  "outputPath": "/home/drkazza/Documents/GitHub/attributeSelector/assets.dist/output/",
+  "basePath": "/home/drkazza/Documents/GitHub/attributeSelector/assets/images/",
+  "outputPath": "/home/drkazza/Documents/GitHub/attributeSelector/assets/output/",
   "imageUrl": "https://ipfs.io/ipfs/xxxx/",
-  "order": [
-    0,
-    1,
-    2,
-    3,
-    4,
-    5,
-    6
-  ],
   "weights": {
     "Black#1.png": 35,
     "High#20.png": 53,
@@ -73,5 +64,49 @@
       37
     ]
   },
-  "totalIssuance": "150"
+  "totalIssuance": "150",
+  "order": [
+    0,
+    3,
+    2,
+    4,
+    5,
+    1,
+    6
+  ],
+  "traitFilenames": {
+    "Background": [
+      "Black#1.png"
+    ],
+    "Bottom lid": [
+      "High#20.png",
+      "Low#40.png",
+      "Middle#40.png"
+    ],
+    "Eye color": [
+      "Cyan#1.png",
+      "Green#1.png",
+      "Pink#1.png",
+      "Purple#1.png",
+      "Red#1.png",
+      "Yellow#10.png"
+    ],
+    "Eyeball": [
+      "Red#50.png",
+      "White#50.png"
+    ],
+    "Iris": [
+      "Large#20.png",
+      "Medium#20.png",
+      "Small#60.png"
+    ],
+    "Shine": [
+      "Shapes#100.png"
+    ],
+    "Top lid": [
+      "High#30.png",
+      "Low#20.png",
+      "Middle#50.png"
+    ]
+  }
 }

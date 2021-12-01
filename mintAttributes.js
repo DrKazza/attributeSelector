@@ -47,6 +47,7 @@ const arrayMaxMint = (maxToMint, currentMinted, minToMint, excessMints) => {
     }
     catch (err) {
         console.log(`Array MaxMint error: ${err}`)
+        process.exit(1);
     }
 }
 

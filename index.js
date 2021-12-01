@@ -12,10 +12,10 @@ import fs from 'fs';
 const fsPromises = fs.promises;
 import minimist from 'minimist';
 const argv = minimist(process.argv.slice(2));
-// import { readFile, writeFile, readdir } from ("fs").promises;
-// const mergeImages = require('merge-images');
-// const { Image, Canvas } = require('canvas');
-// const ImageDataURI = require('image-data-uri');
+import mergeImages from 'merge-images';
+import canvas from 'canvas';
+const { Image, Canvas } = canvas;
+import ImageDataURI from 'image-data-uri';
 import {mintAttributes} from './mintAttributes.js';
 import {traitRarity} from './traitRarity.config.js';
 
@@ -36,10 +36,13 @@ let config = {
 };
 let mintNow;
 let totalIssuance;
-let alreadMinted;
+// let alreadMinted;
 let existingMints = [];
 let newMints = [];
 let weightedTraits = {};
+let traitFilenames = {};
+let rarityChanged = false;
+
 
 
 //DEFINITIONS
@@ -61,7 +64,7 @@ console.log(
       ' Adapted by '
     ) +
       chalk.red('DrKazza \n\n') +
-      chalk.blue(' - original concept\n  by NotLuksus'),
+      chalk.blue(' Inspired by an idea\n from NotLuksus'),
     { borderColor: 'red', padding: 2 }
   )
 );
@@ -93,10 +96,8 @@ async function main() {
   await asyncForEach(traits, async trait => {
     await setWeights(trait);
   });
-
-
-  // check for expected number of variants
   let realisticCombinations = (estimateCombinations(weightedTraits) * 0.65).toPrecision(2)
+  
   await totalIssuancePrompt(realisticCombinations);
 
   const loadingExistingMints = ora('Checking for existing mints');
@@ -112,7 +113,11 @@ async function main() {
   } else if (existingMints.length === totalIssuance) {
     console.log(`All NFTs have been already minted.`)
     return
+  } else if (existingMints.length > 0 && rarityChanged) {
+    console.log(`Warning - Probabilities have changed but some mints already exist`)
+    console.log(`You may violate issuance limits - consider before going on`)
   }
+  let lastMintedID = existingMints.length
   
   if (!argv['mint'] || parseInt(argv['mint']) > config.totalIssuance){
     await mintNowPrompt(config.totalIssuance - existingMints.length, realisticCombinations - existingMints.length);
@@ -124,14 +129,10 @@ async function main() {
   await writeExistingMints();
 
   // for the new mints ONLY - generate the images and metadata below
-
-
-
   const generatingImages = ora('Generating images');
   generatingImages.color = 'yellow';
   generatingImages.start();
-  // this needs totally rebuilding
-  // await generateImages();
+  await generateImages(newMints, lastMintedID);
   await sleep(2);
   generatingImages.succeed('All images generated!');
   generatingImages.clear();
@@ -139,8 +140,10 @@ async function main() {
     const writingMetadata = ora('Exporting metadata');
     writingMetadata.color = 'yellow';
     writingMetadata.start();
-    // totally rebuild this
-    // await writeMetadata();
+
+
+    // enhance this
+    await writeMetadata();
     await sleep(0.5);
     writingMetadata.succeed('Exported metadata successfully');
     writingMetadata.clear();
@@ -174,7 +177,7 @@ async function getBasePath() {
     },
   ]);
   if (base_path === 0) {
-    basePath = process.cwd() + '/';
+    basePath = process.cwd() + '/images/';
   } else {
     const { file_location } = await inquirer.prompt([
       {
@@ -344,8 +347,10 @@ async function setWeights(trait) {
   if (config.weights && Object.keys(config.weights).length === Object.keys(names).length ) {
     weights = config.weights;
     weightedTraits = config.weightedTraits
+    traitFilenames = config.traitFilenames;
     return;
   }  
+  rarityChanged = true;
   const files = await getFilesForTrait(trait);
   const rarityPrompt = [];
   Object.keys(traitRarity).forEach(key => {
@@ -363,10 +368,12 @@ async function setWeights(trait) {
     });
   });
   const selectedWeights = await inquirer.prompt(weightPrompt);
-  let totalProbability = 0
+  let totalProbability = 0;
+  var fileArray = [];
   files.forEach((file, i) => {
     weights[file] = selectedWeights[names[file] + '_weight'];
-    totalProbability += weights[file]
+    totalProbability += weights[file];
+    fileArray.push(file);
   });
 
   if (totalProbability === 0) {
@@ -377,9 +384,11 @@ async function setWeights(trait) {
       traitArray[j] = Math.floor(100 * weights[files[j]] / totalProbability);
     }
   }
-  weightedTraits[trait] = traitArray
+  weightedTraits[trait] = traitArray;
+  traitFilenames[trait] = fileArray;
   config.weights = weights;
-  config.weightedTraits = weightedTraits
+  config.weightedTraits = weightedTraits;
+  config.traitFilenames = traitFilenames;
 }
 
 //ASYNC FOREACH
@@ -486,55 +495,30 @@ function updateCurrentArray(thisCurrentArray, thisExistingMints) {
   return thisCurrentArray
 }
 
-
-
-
-
-//GENERATE WEIGHTED TRAITS
-async function generateWeightedTraits() {
-  for (const trait of traits) {
-    const traitWeights = [];
-    const files = await getFilesForTrait(trait);
-    files.forEach(file => {
-      for (let i = 0; i < weights[file]; i++) {
-        traitWeights.push(file);
-      }
-    });
-    weightedTraits.push(traitWeights);
-  }
+function decodeSerialNumber(thisSerialNumber) {
+  let thisAttributes = [];
+    for (let j = 0; j < Math.floor(thisSerialNumber.length / 2); j++) {
+      thisAttributes.push(parseInt(thisSerialNumber.substring((2*j+1),(2*j+3))))
+    }
+  return thisAttributes
 }
 
 //GENARATE IMAGES
-async function generateImages() {
-  let noMoreMatches = 0;
+async function generateImages(newImagesToMint, lastID) {
   let images = [];
-  let id = 0;
-  await generateWeightedTraits();
+  let theseAttributes = [];
+  let nftID = lastID + 1; // start at NFT ID 1 
 
-  while (!Object.values(weightedTraits).filter(arr => arr.length == 0).length && noMoreMatches < 20000) {
-    let picked = [];
+  for (let i = 0; i < newImagesToMint.length; i++) {
+    theseAttributes = decodeSerialNumber(newImagesToMint[i]);
     order.forEach(id => {
-      let pickedImgId = pickRandom(weightedTraits[id]);
-      picked.push(pickedImgId);
-      let pickedImg = weightedTraits[id][pickedImgId];
-      images.push(basePath + traits[id] + '/' + pickedImg);
+      images.push(basePath + traits[id] + '/' + traitFilenames[traits[id]][theseAttributes[id]])
     });
-
-    if (existCombination(images)) {
-      noMoreMatches++;
-      images = [];
-    } else {
-      generateMetadataObject(id, images);
-      noMoreMatches = 0;
-      order.forEach((id, i) => {
-        remove(weightedTraits[id], picked[i]);
-      });
-      seen.push(images);
-      const b64 = await mergeImages(images, { Canvas: Canvas, Image: Image });
-      await ImageDataURI.outputFile(b64, outputPath + `${id}.png`);
-      images = [];
-      id++;
-    }
+    generateMetadataObject(nftID, images);
+    const b64 = await mergeImages(images, { Canvas: Canvas, Image: Image });
+    await ImageDataURI.outputFile(b64, outputPath + `${nftID}.png`);
+    images = [];
+    nftID++;
   }
 }
 
@@ -575,7 +559,7 @@ function generateMetadataObject(id, images) {
   metaData[id] = {
     name: config.metaData.name + '#' + id,
     description: config.metaData.description,
-    image: config.imageUrl + id,
+    image: config.imageUrl + id + '.json',
     attributes: [],
   };
   images.forEach((image, i) => {
