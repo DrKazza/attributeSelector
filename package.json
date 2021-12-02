@@ -1,9 +1,9 @@
 {
   "name": "attributeselector",
   "version": "1.0.0",
-  "description": "Quasi Random Attribute Selector",
+  "description": "A tool to generate NFT art",
   "type": "module",
-  "main": "index.js",
+  "main": "bin/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,6 +13,10 @@
   },
   "author": "DrKazza",
   "license": "MIT",
+  "bin": {
+    "image-generate": "./bin/index.js",
+    "remap-url": "./bin/urlRemap.js"
+  },
   "bugs": {
     "url": "https://github.com/DrKazza/attributeSelector/issues"
   },

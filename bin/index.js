@@ -1,33 +1,32 @@
-// #!/usr/bin/env node
+#!/usr/bin/env node
 // adapted from notluksus
 
 //IMPORTS
-import dotenv from 'dotenv';
-dotenv.config();
+// import dotenv from 'dotenv';
+// dotenv.config();
 import chalk from 'chalk';
 import boxen from 'boxen';
 import ora from 'ora';
 import inquirer from 'inquirer';
 import fs from 'fs';
-const fsPromises = fs.promises;
+// const fsPromises = fs.promises;
 import minimist from 'minimist';
 const argv = minimist(process.argv.slice(2));
 import mergeImages from 'merge-images';
 import canvas from 'canvas';
 const { Image, Canvas } = canvas;
 import ImageDataURI from 'image-data-uri';
-import {mintAttributes} from './mintAttributes.js';
-import {traitRarity} from './traitRarity.config.js';
+import { mintAttributes } from './mintAttributes.js';
+import { traitRarity } from '../traitRarity.config.js';
 
 //SETTINGS
 let basePath;
 let outputPath;
 let traits;
 let traitsToSort = [];
-let order = []; 
+let order = [];
 let weights = {};
 let names = {};
-// let seen = [];
 let metaData = {};
 let config = {
   metaData: {},
@@ -36,13 +35,12 @@ let config = {
 };
 let mintNow;
 let totalIssuance;
-// let alreadMinted;
 let existingMints = [];
 let newMints = [];
 let weightedTraits = {};
 let traitFilenames = {};
 let rarityChanged = false;
-
+let rarityFromPct = {};
 
 
 //DEFINITIONS
@@ -63,8 +61,8 @@ console.log(
       ' ******************* \n' +
       ' Adapted by '
     ) +
-      chalk.red('DrKazza \n\n') +
-      chalk.blue(' Inspired by an idea\n from NotLuksus'),
+    chalk.red('DrKazza \n\n') +
+    chalk.blue(' Inspired by an idea\n from NotLuksus'),
     { borderColor: 'red', padding: 2 }
   )
 );
@@ -96,8 +94,9 @@ async function main() {
   await asyncForEach(traits, async trait => {
     await setWeights(trait);
   });
+  rarityFromPct = reverseMap(traitRarity)
   let realisticCombinations = (estimateCombinations(weightedTraits) * 0.65).toPrecision(2)
-  
+
   await totalIssuancePrompt(realisticCombinations);
 
   const loadingExistingMints = ora('Checking for existing mints');
@@ -118,14 +117,14 @@ async function main() {
     console.log(`You may violate issuance limits - consider before going on`)
   }
   let lastMintedID = existingMints.length
-  
-  if (!argv['mint'] || parseInt(argv['mint']) > config.totalIssuance){
+
+  if (!argv['mint'] || parseInt(argv['mint']) > config.totalIssuance) {
     await mintNowPrompt(config.totalIssuance - existingMints.length, realisticCombinations - existingMints.length);
   }
   var [minArray, maxArray, currentArray] = generateMinMaxArrays(weightedTraits, config.totalIssuance);
   currentArray = updateCurrentArray(currentArray, existingMints);
   // generate new mint serial numbers***
-  [newMints, currentArray, existingMints] =  mintAttributes(mintNow, config.totalIssuance, minArray, maxArray, currentArray, existingMints)
+  [newMints, currentArray, existingMints] = mintAttributes(mintNow, config.totalIssuance, minArray, maxArray, currentArray, existingMints)
   await writeExistingMints();
 
   // for the new mints ONLY - generate the images and metadata below
@@ -140,9 +139,6 @@ async function main() {
     const writingMetadata = ora('Exporting metadata');
     writingMetadata.color = 'yellow';
     writingMetadata.start();
-
-
-    // enhance this
     await writeMetadata();
     await sleep(0.5);
     writingMetadata.succeed('Exported metadata successfully');
@@ -161,7 +157,7 @@ async function main() {
 
 //GET THE BASEPATH FOR THE IMAGES
 async function getBasePath() {
-  if (config.basePath !== undefined) { 
+  if (config.basePath !== undefined) {
     basePath = config.basePath;
     return;
   }
@@ -299,19 +295,19 @@ async function traitsOrder(isFirst) {
 
 //SELECT IF WE WANT TO SET CUSTOM NAMES FOR EVERY TRAITS OR USE FILENAMES
 async function customNamesPrompt() {
-    if (config.useCustomNames !== null) return;
-    let { useCustomNames } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'useCustomNames',
-        message: 'How should be constructed the names of the traits?',
-        choices: [
-          { name: 'Use filenames as traits names', value: 0 },
-          { name: 'Choose custom names for each trait', value: 1 },
-        ],
-      },
-    ]);
-    config.useCustomNames = useCustomNames;
+  if (config.useCustomNames !== null) return;
+  let { useCustomNames } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'useCustomNames',
+      message: 'How should be constructed the names of the traits?',
+      choices: [
+        { name: 'Use filenames as traits names', value: 0 },
+        { name: 'Choose custom names for each trait', value: 1 },
+      ],
+    },
+  ]);
+  config.useCustomNames = useCustomNames;
 }
 
 //SET NAMES FOR EVERY TRAIT
@@ -333,7 +329,7 @@ async function setNames(trait) {
       if (config.names && config.names[file] !== undefined) return;
       names[file] = selectedNames[trait + '_name_' + i];
     });
-    config.names = {...config.names, ...names};
+    config.names = { ...config.names, ...names };
   } else {
     const files = fs.readdirSync(basePath + '/' + trait);
     files.forEach((file, i) => {
@@ -344,12 +340,12 @@ async function setNames(trait) {
 
 //SET WEIGHTS FOR EVERY TRAIT
 async function setWeights(trait) {
-  if (config.weights && Object.keys(config.weights).length === Object.keys(names).length ) {
+  if (config.weights && Object.keys(config.weights).length === Object.keys(names).length) {
     weights = config.weights;
     weightedTraits = config.weightedTraits
     traitFilenames = config.traitFilenames;
     return;
-  }  
+  }
   rarityChanged = true;
   const files = await getFilesForTrait(trait);
   const rarityPrompt = [];
@@ -405,7 +401,7 @@ async function totalIssuancePrompt(thisRealisticMints) {
     {
       type: 'input',
       name: 'totalIssuance',
-      message: 'What is the maximum to be minted ever? (Keep below ' + Number(thisRealisticMints) +' to minimise duplicates)',
+      message: 'What is the maximum to be minted ever? (Keep below ' + Number(thisRealisticMints) + ' to minimise duplicates)',
       default: Number(thisRealisticMints)
     }
   ]);
@@ -418,37 +414,36 @@ async function mintNowPrompt(maxLeft, thisRealisticMintsLeft) {
     {
       type: 'input',
       name: 'mintNow',
-      message: 'How many would you like to mint right now? (max: ' + Number(maxLeft) + ', recommended: '+ Number(thisRealisticMintsLeft) +')',
+      message: 'How many would you like to mint right now? (max: ' + Number(maxLeft) + ', recommended: ' + Number(thisRealisticMintsLeft) + ')',
       default: Number(thisRealisticMintsLeft),
     }
   ]);
   mintNow = responses.mintNow
 }
 
-async function getExistingMints () {
+async function getExistingMints() {
   try {
     existingMints = await fs.readFileSync('identifierList.txt', 'utf-8').split(`\n`);
     if (existingMints.length === 1 && existingMints[0] === "") {
-        // console.log(`empty file`)
-        existingMints = [];
+      // console.log(`empty file`)
+      existingMints = [];
     }
-    if (existingMints[existingMints.length-1] === "") {existingMints.pop()}
+    if (existingMints[existingMints.length - 1] === "") { existingMints.pop() }
     // just in case there's a blank line at the end
   }
-  catch(err) {
+  catch (err) {
     // console.log(`no file exists`)
     existingMints = [];
   }
 }
 
-async function writeExistingMints () {
-  var writeStream = fs.createWriteStream(`identifierList.txt`, {flags: 'w'});
+async function writeExistingMints() {
+  var writeStream = fs.createWriteStream(`identifierList.txt`, { flags: 'w' });
   // write from scratch each time
-  for (let i = 0; i < existingMints.length; i++)
-  {
-    if(existingMints[i] !== "") {
-      writeStream.write(existingMints[i]+'\n');
-    }  
+  for (let i = 0; i < existingMints.length; i++) {
+    if (existingMints[i] !== "") {
+      writeStream.write(existingMints[i] + '\n');
+    }
   }
 }
 
@@ -460,15 +455,15 @@ function generateMinMaxArrays(baseArray, maxIssuance) {
     thisMinArray[i] = []
     thisMaxArray[i] = []
     thisCurrentArray[i] = []
-    for (let j = 0; j < baseArray[key].length; j++){
+    for (let j = 0; j < baseArray[key].length; j++) {
       let expectedMints = maxIssuance * baseArray[key][j] / 100
       if (expectedMints === 0) {
         // unique mints
         thisMinArray[i].push(1);
         thisMaxArray[i].push(1);
-      } else {        
+      } else {
         thisMinArray[i].push(parseInt(expectedMints * (1 - 0.025)));
-        thisMaxArray[i].push(parseInt(expectedMints * (1 + 0.075)));  
+        thisMaxArray[i].push(parseInt(expectedMints * (1 + 0.075)));
       }
       thisCurrentArray[i].push(0);
     };
@@ -480,14 +475,14 @@ function updateCurrentArray(thisCurrentArray, thisExistingMints) {
   let expectedDigits = thisCurrentArray.length * 2 + 1
   for (let i = 0; i < thisExistingMints.length; i++) {
     let thisSerialNumber = thisExistingMints[i];
-    if (thisSerialNumber.length != expectedDigits || thisSerialNumber.substring(0,1) != "7") {
-        console.log(`Bad serial number at entry ${i}, either doesn't lead with 7 or isn't the right length: ${thisSerialNumber}`)
+    if (thisSerialNumber.length != expectedDigits || thisSerialNumber.substring(0, 1) != "7") {
+      console.log(`Bad serial number at entry ${i}, either doesn't lead with 7 or isn't the right length: ${thisSerialNumber}`)
     } else {
       for (let j = 0; j < Math.floor(thisSerialNumber.length / 2); j++) {
         // the variable j has two digits at j*2 + 1 and j*2 + 3
         // the two digits make up a number k
         // add 1 to the thisCurrentArray[j][k]
-        let k = parseInt(thisSerialNumber.substring((2*j+1),(2*j+3)))
+        let k = parseInt(thisSerialNumber.substring((2 * j + 1), (2 * j + 3)))
         thisCurrentArray[j][k]++
       }
     }
@@ -497,9 +492,9 @@ function updateCurrentArray(thisCurrentArray, thisExistingMints) {
 
 function decodeSerialNumber(thisSerialNumber) {
   let thisAttributes = [];
-    for (let j = 0; j < Math.floor(thisSerialNumber.length / 2); j++) {
-      thisAttributes.push(parseInt(thisSerialNumber.substring((2*j+1),(2*j+3))))
-    }
+  for (let j = 0; j < Math.floor(thisSerialNumber.length / 2); j++) {
+    thisAttributes.push(parseInt(thisSerialNumber.substring((2 * j + 1), (2 * j + 3))))
+  }
   return thisAttributes
 }
 
@@ -522,38 +517,14 @@ async function generateImages(newImagesToMint, lastID) {
   }
 }
 
-//GENERATES RANDOM NUMBER BETWEEN A MAX AND A MIN VALUE
-function randomNumber(min, max) {
-  return Math.round(Math.random() * (max - min) + min);
-}
-
-//PICKS A RANDOM INDEX INSIDE AN ARRAY RETURNS IT AND THEN REMOVES IT
-function pickRandomAndRemove(array) {
-  const toPick = randomNumber(0, array.length - 1);
-  const pick = array[toPick];
-  array.splice(toPick, 1);
-  return pick;
-}
-
-//PICKS A RANDOM INDEX INSIDE AND ARRAY RETURNS IT
-function pickRandom(array) {
-  return randomNumber(0, array.length - 1);
-}
-
-function remove(array, toPick) {
-  array.splice(toPick, 1);
-}
-
-function existCombination(contains) {
-  let exists = false;
-  seen.forEach(array => {
-    let isEqual =
-      array.length === contains.length &&
-      array.every((value, index) => value === contains[index]);
-    if (isEqual) exists = true;
+function reverseMap(thisTraitRarity) {
+  let remappedObj = {};
+  Object.keys(thisTraitRarity).forEach(key => {
+    remappedObj[thisTraitRarity[key].toString()] = key;
   });
-  return exists;
+  return remappedObj
 }
+
 
 function generateMetadataObject(id, images) {
   metaData[id] = {
@@ -568,6 +539,7 @@ function generateMetadataObject(id, images) {
     metaData[id].attributes.push({
       trait_type: traits[order[i]],
       value: names[fileToMap],
+      rarity: rarityFromPct[weights[fileToMap].toString()]
     });
   });
 }
@@ -577,7 +549,7 @@ async function writeMetadata() {
   if (!fs.existsSync(metadata_output_dir)) {
     fs.mkdirSync(metadata_output_dir, { recursive: true });
   }
-  for (var key in metaData){
+  for (var key in metaData) {
     await fs.promises.writeFile(metadata_output_dir + key + '.json', JSON.stringify(metaData[key]));
   }
 }
@@ -586,7 +558,7 @@ async function loadConfig() {
   try {
     const data = await fs.promises.readFile('config.json')
     config = JSON.parse(data.toString());
-  } catch (error) {}
+  } catch (error) { }
 }
 
 async function writeConfig() {
@@ -600,21 +572,21 @@ async function getFilesForTrait(trait) {
 function estimateCombinations(thisTraitWeights) {
   let combos = 1;
   Object.keys(thisTraitWeights).forEach(key => {
-      let percentHurdle = Math.floor(49 / thisTraitWeights[key].length);
-      let realVariables = 0;
-      let residuals = 0;
-      for (let i = 0; i < thisTraitWeights[key].length; i++) {
-        if (thisTraitWeights[key][i] < percentHurdle) {
-          residuals += thisTraitWeights[key][i];
-          if (residuals >= percentHurdle) {
-            realVariables++;
-            residuals = 0;
-          }
-        } else {
+    let percentHurdle = Math.floor(49 / thisTraitWeights[key].length);
+    let realVariables = 0;
+    let residuals = 0;
+    for (let i = 0; i < thisTraitWeights[key].length; i++) {
+      if (thisTraitWeights[key][i] < percentHurdle) {
+        residuals += thisTraitWeights[key][i];
+        if (residuals >= percentHurdle) {
           realVariables++;
+          residuals = 0;
         }
+      } else {
+        realVariables++;
       }
-      combos *= realVariables;
-    })
+    }
+    combos *= realVariables;
+  })
   return combos
 }
