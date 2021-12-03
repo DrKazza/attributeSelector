@@ -2,8 +2,6 @@
 // adapted from notluksus
 
 //IMPORTS
-// import dotenv from 'dotenv';
-// dotenv.config();
 import chalk from 'chalk';
 import boxen from 'boxen';
 import ora from 'ora';
@@ -258,7 +256,6 @@ async function metadataSettings() {
   ]);
   config.metaData.name = responses.metadataName;
   config.metaData.description = responses.metadataDescription;
-  // config.metaData.splitFiles = responses.splitFiles;
   let lastChar = responses.metadataImageUrl.slice(-1);
   if (lastChar === '/') config.imageUrl = responses.metadataImageUrl;
   else config.imageUrl = responses.metadataImageUrl + '/';
@@ -414,8 +411,8 @@ async function mintNowPrompt(maxLeft, thisRealisticMintsLeft) {
     {
       type: 'input',
       name: 'mintNow',
-      message: 'How many would you like to mint right now? (max: ' + Number(maxLeft) + ', recommended: ' + Number(thisRealisticMintsLeft) + ')',
-      default: Number(thisRealisticMintsLeft),
+      message: 'How many would you like to mint right now? (max: ' + Number(Math.min(thisRealisticMintsLeft, maxLeft)) + ')',
+      default: Number(Math.min(thisRealisticMintsLeft, maxLeft)),
     }
   ]);
   mintNow = responses.mintNow
@@ -425,21 +422,18 @@ async function getExistingMints() {
   try {
     existingMints = await fs.readFileSync('identifierList.txt', 'utf-8').split(`\n`);
     if (existingMints.length === 1 && existingMints[0] === "") {
-      // console.log(`empty file`)
       existingMints = [];
     }
     if (existingMints[existingMints.length - 1] === "") { existingMints.pop() }
     // just in case there's a blank line at the end
   }
   catch (err) {
-    // console.log(`no file exists`)
     existingMints = [];
   }
 }
 
 async function writeExistingMints() {
   var writeStream = fs.createWriteStream(`identifierList.txt`, { flags: 'w' });
-  // write from scratch each time
   for (let i = 0; i < existingMints.length; i++) {
     if (existingMints[i] !== "") {
       writeStream.write(existingMints[i] + '\n');
@@ -479,9 +473,6 @@ function updateCurrentArray(thisCurrentArray, thisExistingMints) {
       console.log(`Bad serial number at entry ${i}, either doesn't lead with 7 or isn't the right length: ${thisSerialNumber}`)
     } else {
       for (let j = 0; j < Math.floor(thisSerialNumber.length / 2); j++) {
-        // the variable j has two digits at j*2 + 1 and j*2 + 3
-        // the two digits make up a number k
-        // add 1 to the thisCurrentArray[j][k]
         let k = parseInt(thisSerialNumber.substring((2 * j + 1), (2 * j + 3)))
         thisCurrentArray[j][k]++
       }
@@ -503,7 +494,6 @@ async function generateImages(newImagesToMint, lastID) {
   let images = [];
   let theseAttributes = [];
   let nftID = lastID + 1; // start at NFT ID 1 
-
   for (let i = 0; i < newImagesToMint.length; i++) {
     theseAttributes = decodeSerialNumber(newImagesToMint[i]);
     order.forEach(id => {
@@ -530,7 +520,7 @@ function generateMetadataObject(id, images) {
   metaData[id] = {
     name: config.metaData.name + '#' + id,
     description: config.metaData.description,
-    image: config.imageUrl + id + '.json',
+    image: config.imageUrl + id + '.png',
     attributes: [],
   };
   images.forEach((image, i) => {
