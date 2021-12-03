@@ -21,7 +21,7 @@ Original Idea: https://www.npmjs.com/package/nft-art-generator
 * dynamic probability adjusting to make sure that although uniques are very very rare, this will guarantee that at some point you will mint one - and only one unique when all mints are done
 
 **Installation**
-`npm install -g attributeSelector`
+`npm install -g attributeselector`
 
 **Usage 1:**
 `image-generate [--save-config] [--mint 15]`
