@@ -308,18 +308,6 @@ async function customNamesPrompt() {
   config.useCustomNames = useCustomNames;
 }
 
-//FIX ME
-//FIX ME
-//FIX ME
-//FIX ME
-//FIX ME
-//FIX ME
-//FIX ME
-//FIX ME
-//FIX ME
-
-
-
 //SET NAMES FOR EVERY TRAIT
 async function setNames(trait) {
   if (config.useCustomNames) {
@@ -327,7 +315,7 @@ async function setNames(trait) {
     const files = await getFilesForTrait(trait);
     const namePrompt = [];
     files.forEach((file, i) => {
-      if (config.names && config.names[file] !== undefined) return;
+      if (config.names && config.names[trait + "/" + file] !== undefined) return;
       namePrompt.push({
         type: 'input',
         name: trait + '_name_' + i,
@@ -336,14 +324,14 @@ async function setNames(trait) {
     });
     const selectedNames = await inquirer.prompt(namePrompt);
     files.forEach((file, i) => {
-      if (config.names && config.names[file] !== undefined) return;
-      names[file] = selectedNames[trait + '_name_' + i];
+      if (config.names && config.names[trait + "/" + file] !== undefined) return;
+      names[trait + "/" + file] = selectedNames[trait + '_name_' + i];
     });
     config.names = { ...config.names, ...names };
   } else {
     const files = fs.readdirSync(basePath + '/' + trait);
     files.forEach((file, i) => {
-      names[file] = file.split('.')[0];
+      names[trait + "/" + file] = file.split('.')[0];
     });
   }
 }
@@ -364,20 +352,12 @@ async function setWeights(trait) {
       name: key, value: traitRarity[key]
     })
   });
-
-  //FIX ME
-//FIX ME
-//FIX ME
-//FIX ME
-//FIX ME
-//FIX ME
-
   const weightPrompt = [];
   files.forEach((file, i) => {
     weightPrompt.push({
       type: 'list',
-      name: names[file] + '_weight',
-      message: 'What rarity should ' + names[file] + ' of trait ' + trait + ' be?',
+      name: names[trait + "/" + file] + '_weight',
+      message: 'What rarity should ' + names[trait + "/" + file] + ' of trait ' + trait + ' be?',
       choices: rarityPrompt,
     });
   });
@@ -385,14 +365,7 @@ async function setWeights(trait) {
   var fileArray = [];
   let netBuckets = 0
   files.forEach((file, i) => {
-    //FIX ME
-//FIX ME
-//FIX ME
-//FIX ME
-//FIX ME
-//FIX ME
-
-    weights[trait + "/" + file] = selectedWeights[names[file] + '_weight'];
+    weights[trait + "/" + file] = selectedWeights[names[trait + "/" + file] + '_weight'];
     netBuckets += weights[trait + "/" + file]
     fileArray.push(file);
   });
@@ -422,7 +395,7 @@ async function asyncForEach(array, callback) {
 
 
 async function totalIssuancePrompt(thisRealisticMints, thisMinMints) {
-  if (config.totalIssuance && Object.keys(config.totalIssuance).length !== 0) return;
+  if (config.totalIssuance && config.totalIssuance > 0) return;
   let responses = await inquirer.prompt([
     {
       type: 'input',

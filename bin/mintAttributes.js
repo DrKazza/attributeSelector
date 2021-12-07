@@ -130,7 +130,7 @@ export const mintAttributes = (numberToMint, targetIssuance, allMins, allMaxs, a
             // if it has, then go back for a max of 100 iterations until no match is found
         }
         if (dupeFound == true) {
-            console.log(`Dupe avoidance failed on minting ${i}`)
+            console.log(`Dupe avoidance failed on minting ${arrayTotal(allCurrents[0])+1}`)
         }
         // Once a unique is confirmed add it to the currentMints, thisNewMints and the allCurrents array for checking
         thisCurrentMints.push(thisSerialNumber);
