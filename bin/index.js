@@ -491,6 +491,10 @@ function decodeSerialNumber(thisSerialNumber) {
 
 //GENARATE IMAGES
 async function generateImages(newImagesToMint, lastID) {
+  let image_output_dir = outputPath + "images/"
+  if (!fs.existsSync(image_output_dir)) {
+    fs.mkdirSync(image_output_dir, { recursive: true });
+  }
   let images = [];
   let theseAttributes = [];
   let nftID = lastID + 1; // start at NFT ID 1 
@@ -501,7 +505,7 @@ async function generateImages(newImagesToMint, lastID) {
     });
     generateMetadataObject(nftID, images);
     const b64 = await mergeImages(images, { Canvas: Canvas, Image: Image });
-    await ImageDataURI.outputFile(b64, outputPath + `${nftID}.png`);
+    await ImageDataURI.outputFile(b64, image_output_dir + `${nftID}.png`);
     images = [];
     nftID++;
   }
