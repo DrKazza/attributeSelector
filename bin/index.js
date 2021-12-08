@@ -76,6 +76,7 @@ async function main() {
   if (config.generateMetadata) {
     await metadataSettings();
   }
+  rarityFromPct = reverseMap(traitRarity)
   const loadingDirectories = ora('Loading traits');
   loadingDirectories.color = 'yellow';
   loadingDirectories.start();
@@ -92,10 +93,10 @@ async function main() {
   await asyncForEach(traits, async trait => {
     await setWeights(trait);
   });
-  rarityFromPct = reverseMap(traitRarity)
-  let realisticCombinations = (estimateCombinations(weightedTraits) * 0.65).toPrecision(2)
+  let [estMaxCombo, estMinCombo] = estimateCombinations(weightedTraits);
+  let realisticCombinations = (estMaxCombo * 0.65).toPrecision(2)
 
-  await totalIssuancePrompt(realisticCombinations);
+  await totalIssuancePrompt(realisticCombinations, estMinCombo);
 
   const loadingExistingMints = ora('Checking for existing mints');
   loadingExistingMints.color = 'yellow';
@@ -297,7 +298,7 @@ async function customNamesPrompt() {
     {
       type: 'list',
       name: 'useCustomNames',
-      message: 'How should be constructed the names of the traits?',
+      message: 'How should the names of the traits be determined?',
       choices: [
         { name: 'Use filenames as traits names', value: 0 },
         { name: 'Choose custom names for each trait', value: 1 },
@@ -314,7 +315,7 @@ async function setNames(trait) {
     const files = await getFilesForTrait(trait);
     const namePrompt = [];
     files.forEach((file, i) => {
-      if (config.names && config.names[file] !== undefined) return;
+      if (config.names && config.names[trait + "/" + file] !== undefined) return;
       namePrompt.push({
         type: 'input',
         name: trait + '_name_' + i,
@@ -323,14 +324,14 @@ async function setNames(trait) {
     });
     const selectedNames = await inquirer.prompt(namePrompt);
     files.forEach((file, i) => {
-      if (config.names && config.names[file] !== undefined) return;
-      names[file] = selectedNames[trait + '_name_' + i];
+      if (config.names && config.names[trait + "/" + file] !== undefined) return;
+      names[trait + "/" + file] = selectedNames[trait + '_name_' + i];
     });
     config.names = { ...config.names, ...names };
   } else {
     const files = fs.readdirSync(basePath + '/' + trait);
     files.forEach((file, i) => {
-      names[file] = file.split('.')[0];
+      names[trait + "/" + file] = file.split('.')[0];
     });
   }
 }
@@ -355,26 +356,26 @@ async function setWeights(trait) {
   files.forEach((file, i) => {
     weightPrompt.push({
       type: 'list',
-      name: names[file] + '_weight',
-      message: 'What rarity should ' + names[file] + ' ' + trait + ' be?',
+      name: names[trait + "/" + file] + '_weight',
+      message: 'What rarity should ' + names[trait + "/" + file] + ' of trait ' + trait + ' be?',
       choices: rarityPrompt,
     });
   });
   const selectedWeights = await inquirer.prompt(weightPrompt);
-  let totalProbability = 0;
   var fileArray = [];
+  let netBuckets = 0
   files.forEach((file, i) => {
-    weights[file] = selectedWeights[names[file] + '_weight'];
-    totalProbability += weights[file];
+    weights[trait + "/" + file] = selectedWeights[names[trait + "/" + file] + '_weight'];
+    netBuckets += weights[trait + "/" + file]
     fileArray.push(file);
   });
 
-  if (totalProbability === 0) {
+  if (netBuckets === 0) {
     var traitArray = new Array(files.length).fill(100);
   } else {
     var traitArray = new Array(files.length).fill(0);
     for (let j = 0; j < files.length; j++) {
-      traitArray[j] = Math.floor(100 * weights[files[j]] / totalProbability);
+      traitArray[j] = weights[trait + "/" + files[j]] * 100 / netBuckets
     }
   }
   weightedTraits[trait] = traitArray;
@@ -392,14 +393,14 @@ async function asyncForEach(array, callback) {
 }
 
 
-async function totalIssuancePrompt(thisRealisticMints) {
-  if (config.totalIssuance && Object.keys(config.totalIssuance).length !== 0) return;
+async function totalIssuancePrompt(thisRealisticMints, thisMinMints) {
+  if (config.totalIssuance && config.totalIssuance > 0) return;
   let responses = await inquirer.prompt([
     {
       type: 'input',
       name: 'totalIssuance',
-      message: 'What is the maximum to be minted ever? (Keep below ' + Number(thisRealisticMints) + ' to minimise duplicates)',
-      default: Number(thisRealisticMints)
+      message: 'What is the maximum to be minted ever? (between '+ Number(thisMinMints) + ' - ' + Number(thisRealisticMints) + ')',
+      default: Number(thisMinMints)
     }
   ]);
   totalIssuance = responses.totalIssuance;
@@ -456,8 +457,9 @@ function generateMinMaxArrays(baseArray, maxIssuance) {
         thisMinArray[i].push(1);
         thisMaxArray[i].push(1);
       } else {
-        thisMinArray[i].push(parseInt(expectedMints * (1 - 0.025)));
-        thisMaxArray[i].push(parseInt(expectedMints * (1 + 0.075)));
+        let minMint = weights[key + "/" + traitFilenames[key][j]]
+        thisMinArray[i].push(parseInt(Math.max(expectedMints * (1 - 0.025), minMint)));
+        thisMaxArray[i].push(parseInt(Math.max(expectedMints * (1 + 0.075), minMint)));
       }
       thisCurrentArray[i].push(0);
     };
@@ -501,7 +503,11 @@ async function generateImages(newImagesToMint, lastID) {
     });
     generateMetadataObject(nftID, images);
     const b64 = await mergeImages(images, { Canvas: Canvas, Image: Image });
-    await ImageDataURI.outputFile(b64, outputPath + `${nftID}.png`);
+    let image_output_dir = outputPath + "images/"
+    if (!fs.existsSync(image_output_dir)) {
+      fs.mkdirSync(image_output_dir, { recursive: true });
+    }
+    await ImageDataURI.outputFile(b64, image_output_dir + `${nftID}.png`);
     images = [];
     nftID++;
   }
@@ -526,10 +532,11 @@ function generateMetadataObject(id, images) {
   images.forEach((image, i) => {
     let pathArray = image.split('/');
     let fileToMap = pathArray[pathArray.length - 1];
+    let weightsFile = pathArray[pathArray.length - 2] +"/" + fileToMap
     metaData[id].attributes.push({
       trait_type: traits[order[i]],
       value: names[fileToMap],
-      rarity: rarityFromPct[weights[fileToMap].toString()]
+      rarity: rarityFromPct[weights[weightsFile].toString()]
     });
   });
 }
@@ -561,10 +568,12 @@ async function getFilesForTrait(trait) {
 
 function estimateCombinations(thisTraitWeights) {
   let combos = 1;
+  let minCombos = 0
   Object.keys(thisTraitWeights).forEach(key => {
     let percentHurdle = Math.floor(49 / thisTraitWeights[key].length);
     let realVariables = 0;
     let residuals = 0;
+    let thisCombos = 0;
     for (let i = 0; i < thisTraitWeights[key].length; i++) {
       if (thisTraitWeights[key][i] < percentHurdle) {
         residuals += thisTraitWeights[key][i];
@@ -575,8 +584,11 @@ function estimateCombinations(thisTraitWeights) {
       } else {
         realVariables++;
       }
+      let traitfilename = key + "/" + traitFilenames[key][i];
+      thisCombos += weights[traitfilename];
     }
+    minCombos = Math.max(minCombos, thisCombos)
     combos *= realVariables;
   })
-  return combos
+  return [combos, minCombos]
 }
