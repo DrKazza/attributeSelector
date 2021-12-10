@@ -535,7 +535,7 @@ function generateMetadataObject(id, images) {
     let weightsFile = pathArray[pathArray.length - 2] +"/" + fileToMap
     metaData[id].attributes.push({
       trait_type: traits[order[i]],
-      value: names[fileToMap],
+      value: names[weightsFile],
       rarity: rarityFromPct[weights[weightsFile].toString()]
     });
   });
