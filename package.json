@@ -15,7 +15,8 @@
   "license": "MIT",
   "bin": {
     "image-generate": "./bin/index.js",
-    "remap-url": "./bin/urlRemap.js"
+    "remap-url": "./bin/urlRemap.js",
+    "rebuild-images": "./bin/regenerateImages.js"
   },
   "bugs": {
     "url": "https://github.com/DrKazza/attributeSelector/issues"

@@ -18,7 +18,7 @@ Original Idea: https://www.npmjs.com/package/nft-art-generator
     * The Rarities for each of these can be changed pre-minting
 * Generate metadata for direct use on OpenSea
 * Save a list of already generated objects
-* dynamic probability adjusting to make sure that although uniques are very very rare, this will guarantee that at some point you will mint one - and only one unique when all mints are done
+* Dynamic probability adjusting to make sure that although uniques are very very rare, this will guarantee that at some point you will mint one - and only one unique when all mints are done
 
 **Installation**
 `npm install -g attributeselector`
@@ -28,6 +28,9 @@ Original Idea: https://www.npmjs.com/package/nft-art-generator
 
 **Usage 2:**
 `remap-url`
+
+**Usage 3:**
+`rebuild-images`
 
 Options
   - save-config: saves all entered values to a config.json file, which gets used in future runs
@@ -54,7 +57,7 @@ YOUR_PROJECT/
 │  │  ├─ ...  
 │  ├─ ...  
 
-This is really important, since the scripts imports the traits based on the folder structure.
+This is really important, since the scripts imports the traits based on the folder structure. Filenames don't need to be unique.
 
 The program will ask you for a number of inputs - if you add the option --save-config then any of them marked *onetime* will only need to be specified the first time you run the program
 
@@ -138,6 +141,14 @@ navigate to the folder which contains probably 4 items:
 and type the following command   `remap-url`
 
 you can then select the text to remap - so the text out in this example would be "xxxx" and the text in would be the new directory so for example "QmchJPQNLE5EUSYTzfzUsNFy"
+
+
+**IMAGE REGENERATION**
+
+There's a chance you lost your images, or they're not up to scratch but you don't want to regenerate all the weightings and list of NFTs. As long as you have the config.json and the identifierList.txt you can regenerate some or all of the images in one easy shot. 
+Just go to the folder with the two files in it and type `rebuild-images` and that will start the process of regeneration.
+
+
 
 
 **TESTING**
